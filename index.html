@@ -343,7 +343,7 @@
   .serving-row:last-child { border-bottom: none; }
   .serving-counter { display: flex; align-items: center; gap: 6px; margin-left: auto; }
   .counter-btn { background: none; border: 1.5px solid var(--border); border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--green-primary); font-weight: 700; }
-  .counter-val { min-width: 36px; text-align: center; font-size: 15px; font-weight: 700; border: none; background: transparent; padding: 0; font-family: inherit; color: inherit; -webkit-appearance: none; -moz-appearance: textfield; }
+  .counter-val { width: 36px; min-width: 36px; text-align: center; font-size: 15px; font-weight: 700; border: none; background: transparent; padding: 0; font-family: inherit; color: inherit; -webkit-appearance: none; -moz-appearance: textfield; }
   .counter-val:focus { outline: 1.5px solid var(--green-primary); border-radius: 4px; background: white; }
   .counter-val::-webkit-inner-spin-button, .counter-val::-webkit-outer-spin-button { -webkit-appearance: none; }
   .total-servings { padding: 8px 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid #f0f0f0; text-align: right; }
@@ -405,7 +405,7 @@
     font-family: inherit;
   }
   .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--green-primary); }
-  .form-textarea { min-height: 70px; resize: vertical; }
+  .form-textarea { min-height: 160px; resize: vertical; }
   .form-row { display: flex; gap: 8px; }
   .form-row .form-group { flex: 1; }
 
@@ -815,14 +815,14 @@ function toggleDishSelection(dishId, wk) {
     delete wd.dishServings[dishId];
   } else {
     wd.selectedDishes.push(dishId);
-    wd.dishServings[dishId] = 4;
+    wd.dishServings[dishId] = 6;
   }
   saveData();
 }
 
 function getDishServings(dishId, wk) {
   const wd = getWeekData(wk);
-  return wd.dishServings[dishId] || 4;
+  return wd.dishServings[dishId] || 6;
 }
 
 function setDishServings(dishId, wk, n) {
@@ -1383,8 +1383,8 @@ function doGenerateShopList() {
   wd.selectedDishes.forEach(dishId => {
     const dish = db.dishes.find(d => d.id === dishId);
     if (!dish) return;
-    const servings = wd.dishServings[dishId] || 4;
-    const scale = servings / 4;
+    const servings = wd.dishServings[dishId] || 6;
+    const scale = servings / (dish.baseServings || 4);
 
     dish.ingredients.forEach(ing => {
       const needed = Math.round(ing.qty * scale * 100) / 100;
@@ -1421,7 +1421,7 @@ function openDishDetail(id) {
       <div class="detail-notes">${escHtml(dish.notes).replace(/\n/g,'<br>')}</div>
     </div>` : ''}
     <div class="detail-section">
-      <div class="detail-label">Ingredients (${dish.ingredients.length})</div>
+      <div class="detail-label">Ingredients (${dish.ingredients.length}) · serves ${dish.baseServings || 4}</div>
       <table class="detail-ing-table">
         <tbody>
           ${dish.ingredients.map(i=>`<tr>
@@ -1478,6 +1478,10 @@ function openDishModal(id) {
           ${cats.map(c=>`<option${dish?.category===c?' selected':''}>${c}</option>`).join('')}
         </select>
       </div>
+      <div class="form-group" style="max-width:90px">
+        <label class="form-label">Serves</label>
+        <input class="form-input" id="dish-serves" type="number" min="1" step="1" value="${dish?.baseServings||4}">
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Cooking Notes</label>
@@ -1530,6 +1534,7 @@ function saveDish(id) {
     id: id || nextId(),
     name,
     category: document.getElementById('dish-cat').value,
+    baseServings: parseInt(document.getElementById('dish-serves').value) || 4,
     notes: document.getElementById('dish-notes').value.trim(),
     ingredients,
   };
