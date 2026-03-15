@@ -1410,7 +1410,7 @@ function openDishDetail(id) {
     <div class="modal-title">${escHtml(dish.name)} ${catBadge(dish.category)}</div>
     ${dish.notes ? `<div class="detail-section">
       <div class="detail-label">Cooking Notes</div>
-      <div class="detail-notes">${escHtml(dish.notes)}</div>
+      <div class="detail-notes">${escHtml(dish.notes).replace(/\n/g,'<br>')}</div>
     </div>` : ''}
     <div class="detail-section">
       <div class="detail-label">Ingredients (${dish.ingredients.length})</div>
