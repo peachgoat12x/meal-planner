@@ -43,6 +43,7 @@
     z-index: 100;
     box-shadow: 0 2px 8px rgba(0,0,0,0.25);
   }
+  #header.no-strip { padding-bottom: 14px; }
   #header-title { font-size: 18px; font-weight: 700; letter-spacing: 0.3px; }
   #header-sub { font-size: 11px; opacity: 0.75; margin-top: 1px; }
 
@@ -50,9 +51,9 @@
   #week-strip {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 10px 0 10px;
-    overflow: visible;
+    gap: 2px;
+    padding: 8px 0 8px;
+    overflow: hidden;
   }
   #week-strip.hidden { display: none; }
   .week-arrow {
@@ -60,26 +61,44 @@
     border: none;
     color: white;
     font-size: 18px;
-    padding: 4px 6px;
+    padding: 4px 4px;
     cursor: pointer;
     opacity: 0.85;
     flex-shrink: 0;
   }
   .week-arrow:active { opacity: 0.5; }
-  #week-dates { display: flex; gap: 5px; flex: 1; justify-content: center; }
+  #week-dates { display: flex; gap: 3px; flex: 1; justify-content: center; overflow: hidden; }
   .week-btn {
     background: transparent;
     border: 1.5px solid transparent;
     color: rgba(255,255,255,0.75);
     border-radius: 20px;
-    padding: 4px 9px;
+    padding: 4px 7px;
     font-size: 12px;
     cursor: pointer;
     white-space: nowrap;
     transition: all 0.15s;
+    flex-shrink: 0;
   }
   .week-btn.current-week { border-color: rgba(255,255,255,0.55); color: rgba(255,255,255,0.9); }
   .week-btn.selected { background: white; color: var(--green-dark); font-weight: 700; border-color: white; }
+  .now-btn {
+    background: none;
+    border: 1.5px solid rgba(255,255,255,0.35);
+    color: rgba(255,255,255,0.45);
+    border-radius: 20px;
+    padding: 4px 7px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .now-btn.active {
+    border-color: rgba(255,255,255,0.75);
+    color: rgba(255,255,255,0.9);
+  }
+  .now-btn.active:active { opacity: 0.6; }
 
   /* ── TAB BAR ── */
   #tab-bar {
@@ -105,11 +124,11 @@
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     transition: color 0.15s;
   }
-  .tab-btn .tab-icon { font-size: 18px; line-height: 1; }
+  .tab-btn .tab-icon { font-size: 21px; line-height: 1; }
   .tab-btn.active { color: var(--green-primary); font-weight: 600; }
 
   /* ── CONTENT ── */
@@ -556,23 +575,24 @@
     transition: opacity 0.15s;
   }
   .shop-item.checked { opacity: 0.5; }
-  .shop-item-body { flex: 1; min-width: 0; }
+  .shop-item-body { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 8px; }
+  .shop-item-left { flex: 1; min-width: 0; }
+  .shop-item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
   .shop-item-name { font-size: 14px; font-weight: 600; }
-  .shop-item-needed { font-size: 12px; color: #444; margin-top: 2px; }
-  .shop-item-pantry { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-  .shop-tobuy-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
-  .shop-tobuy-label { font-size: 12px; color: #555; white-space: nowrap; }
+  .shop-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
   .shop-tobuy-input {
-    width: 70px;
-    padding: 4px 8px;
+    width: 68px;
+    padding: 5px 8px;
     border: 1.5px solid var(--border);
     border-radius: 6px;
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 700;
     color: var(--green-dark);
     background: var(--green-light);
+    text-align: center;
   }
   .shop-tobuy-input:focus { outline: none; border-color: var(--green-primary); }
+  .shop-tobuy-unit { font-size: 11px; color: #555; text-align: right; }
   .shop-check {
     width: 22px;
     height: 22px;
@@ -589,7 +609,7 @@
   <!-- HEADER -->
   <div id="header">
     <div id="header-title">🍚 Meal Planner</div>
-    <div id="header-sub">Weekly batch cooking tracker</div>
+    <div id="header-sub">Weekly cooking tracker</div>
     <div id="week-strip">
       <button class="week-arrow" onclick="shiftWeek(-1)">‹</button>
       <div id="week-dates"></div>
@@ -603,9 +623,9 @@
   <!-- TAB BAR -->
   <div id="tab-bar">
     <button class="tab-btn active" onclick="switchTab(0)"><span class="tab-icon">🏠</span>Home</button>
-    <button class="tab-btn" onclick="switchTab(1)"><span class="tab-icon">🥬</span>Pantry</button>
-    <button class="tab-btn" onclick="switchTab(2)"><span class="tab-icon">📖</span>Dishes</button>
-    <button class="tab-btn" onclick="switchTab(3)"><span class="tab-icon">🍱</span>Ready</button>
+    <button class="tab-btn" onclick="switchTab(1)"><span class="tab-icon">📖</span>Dishes</button>
+    <button class="tab-btn" onclick="switchTab(2)"><span class="tab-icon">🍱</span>Ready</button>
+    <button class="tab-btn" onclick="switchTab(3)"><span class="tab-icon">🥬</span>Pantry</button>
     <button class="tab-btn" onclick="switchTab(4)"><span class="tab-icon">⚖️</span>Serving</button>
     <button class="tab-btn" onclick="switchTab(5)"><span class="tab-icon">🛒</span>List</button>
   </div>
@@ -874,12 +894,14 @@ function render() {
 function renderContent() {
   const content = document.getElementById('content');
   const strip = document.getElementById('week-strip');
-  const weekAware = activeTab === 0 || activeTab === 2;
+  const header = document.getElementById('header');
+  const weekAware = activeTab === 0 || activeTab === 1;
   strip.classList.toggle('hidden', !weekAware);
+  header.classList.toggle('no-strip', !weekAware);
 
   if (weekAware) renderWeekStrip();
 
-  const tabs = [renderHome, renderPantry, renderDishes, renderReady, renderServing, renderShop];
+  const tabs = [renderHome, renderDishes, renderReady, renderPantry, renderServing, renderShop];
   content.innerHTML = tabs[activeTab]();
 }
 
@@ -887,9 +909,11 @@ function renderContent() {
 // WEEK STRIP
 // ═══════════════════════════════════════════════════
 function renderWeekStrip() {
-  const dates = [-2, -1, 0, 1, 2].map(n => addWks(viewWeek, n));
+  const dates = [-1, 0, 1, 2].map(n => addWks(viewWeek, n));
   const container = document.getElementById('week-dates');
-  container.innerHTML = dates.map(d => {
+  const isCurrentWeek = viewWeek === thisMonday;
+  const nowBtn = `<button class="now-btn${isCurrentWeek ? '' : ' active'}" onclick="jumpToNow()" title="Current week">Now</button>`;
+  container.innerHTML = nowBtn + dates.map(d => {
     const isSelected = d === viewWeek;
     const isCurrent = d === thisMonday && !isSelected;
     let cls = 'week-btn';
@@ -897,6 +921,11 @@ function renderWeekStrip() {
     else if (isCurrent) cls += ' current-week';
     return `<button class="${cls}" onclick="selectWeek('${d}')">${fmtDate(d)}</button>`;
   }).join('');
+}
+
+function jumpToNow() {
+  viewWeek = thisMonday;
+  render();
 }
 
 function selectWeek(d) {
@@ -917,7 +946,7 @@ function switchTab(idx) {
   confirmDel = null;
   dishReplaceConfirm = false;
   servingEditMode = false;
-  if (idx !== 2) thisWeekUserSet = false;
+  if (idx !== 1) thisWeekUserSet = false;
   window.scrollTo(0, 0);
   document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
   renderContent();
@@ -964,7 +993,7 @@ function renderHome() {
 
   // Expiry banner
   if (expiringItems.length > 0) {
-    html += `<div class="expiry-banner" onclick="goToPantryExpiry()">⚠️ ${expiringItems.length} item${expiringItems.length > 1 ? 's' : ''} need attention</div>`;
+    html += `<div class="expiry-banner" onclick="goToPantryExpiry()">⚠️ ${expiringItems.length} item${expiringItems.length > 1 ? 's' : ''} ${expiringItems.length > 1 ? 'need' : 'needs'} attention</div>`;
   }
 
   // Week banner
@@ -1010,6 +1039,18 @@ function renderHome() {
   }
 
   html += '</div>';
+
+  // ── DATA BACKUP ──
+  html += `<div class="section" style="padding-bottom:14px">
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:8px">Data Backup</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-secondary" style="flex:1;font-size:13px;padding:9px" onclick="exportData()">⬇️ Export</button>
+      <button class="btn-secondary" style="flex:1;font-size:13px;padding:9px" onclick="document.getElementById('import-file').click()">⬆️ Import</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:7px">Export saves all your data as a JSON file. Import restores from a previous export.</div>
+  </div>`;
+
   return html;
 }
 
@@ -1017,7 +1058,7 @@ function goToPantryExpiry() {
   pantryExpFilter = true;
   pantryLocFilter = 'All';
   pantryCatFilter = 'All';
-  switchTab(1);
+  switchTab(3);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1230,7 +1271,7 @@ function renderDishes() {
       selectedDishes.forEach(dish => {
         const sv = getDishServings(dish.id, viewWeek);
         html += `<div class="serving-row">
-          <span style="font-size:14px;font-weight:600;flex:1">${escHtml(dish.name)}</span>
+          <span style="font-size:14px;font-weight:600;flex:1;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${dish.id})">${escHtml(dish.name)}</span>
           ${catBadge(dish.category)}
           <div class="serving-counter">
             <button class="counter-btn" onclick="adjServings(${dish.id},-1)">−</button>
@@ -1786,16 +1827,19 @@ function renderShop() {
     html += `<div class="shop-empty">No cook plan items.<br>Generate from the Dishes tab.</div>`;
   } else {
     planItems.forEach(item => {
+      const pantryMeta = item.pantryQty !== null
+        ? `Needed: ${item.needed} ${escHtml(item.unit)} · Pantry: ${item.pantryQty} ${escHtml(item.pantryUnit || '')}${item.pantryLoc ? ' · ' + item.pantryLoc : ''}`
+        : `Needed: ${item.needed} ${escHtml(item.unit)} · None at home`;
       html += `<div class="shop-item${item.checked ? ' checked' : ''}">
         <input type="checkbox" class="shop-check" ${item.checked ? 'checked' : ''} onchange="toggleShopItem('plan',${item.id},this.checked)">
         <div class="shop-item-body">
-          <div class="shop-item-name">${escHtml(item.name)}</div>
-          <div class="shop-item-needed">Needed: ${item.needed} ${escHtml(item.unit)}</div>
-          ${item.pantryQty !== null ? `<div class="shop-item-pantry">In pantry: ${item.pantryQty} ${escHtml(item.pantryUnit || '')}${item.pantryLoc ? ' · ' + item.pantryLoc : ''}</div>` : ''}
-          <div class="shop-tobuy-row">
-            <span class="shop-tobuy-label">To buy:</span>
+          <div class="shop-item-left">
+            <div class="shop-item-name">${escHtml(item.name)}</div>
+            <div class="shop-item-meta">${pantryMeta}</div>
+          </div>
+          <div class="shop-item-right">
             <input class="shop-tobuy-input" type="number" step="0.01" value="${item.toBuyQty ?? item.needed}" oninput="updateToBuy(${item.id},this.value)" onchange="updateToBuy(${item.id},this.value)">
-            <span style="font-size:12px;color:#555">${escHtml(item.unit)}</span>
+            <span class="shop-tobuy-unit">${escHtml(item.unit)}</span>
           </div>
         </div>
       </div>`;
@@ -1812,8 +1856,13 @@ function renderShop() {
         ${delBtn('shopX', item.id)}
         <input type="checkbox" class="shop-check" ${item.checked ? 'checked' : ''} onchange="toggleShopItem('extra',${item.id},this.checked)" style="margin-left:0">
         <div class="shop-item-body">
-          <div class="shop-item-name">${escHtml(item.name)}</div>
-          ${(item.qty || item.unit) ? `<div class="shop-item-needed">${item.qty || ''} ${escHtml(item.unit || '')}</div>` : ''}
+          <div class="shop-item-left">
+            <div class="shop-item-name">${escHtml(item.name)}</div>
+          </div>
+          ${(item.qty != null || item.unit) ? `<div class="shop-item-right">
+            <span class="shop-tobuy-input" style="display:inline-block;text-align:center;padding:5px 8px;font-size:14px;font-weight:700;color:var(--green-dark);background:var(--green-light);border:1.5px solid var(--border);border-radius:6px;min-width:68px">${item.qty != null ? item.qty : '—'}</span>
+            <span class="shop-tobuy-unit">${escHtml(item.unit || '')}</span>
+          </div>` : ''}
         </div>
       </div>`;
     });
@@ -1901,23 +1950,20 @@ function copyShopList() {
   const extras = db.shoppingExtras || [];
 
   const unticked = [];
-  const ticked = [];
 
   planItems.forEach(item => {
     const qty = item.toBuyQty != null ? item.toBuyQty : item.needed;
-    const str = `${item.name} ${qty}${item.unit}`;
-    if (item.checked) ticked.push(item.name);
-    else if (qty > 0) unticked.push(str);
+    if (!item.checked && qty > 0) unticked.push(`${item.name} ${qty} ${item.unit}`.trim());
   });
 
   extras.forEach(item => {
-    const str = item.qty ? `${item.name} ${item.qty}${item.unit ? item.unit : ''}` : item.name;
-    if (item.checked) ticked.push(item.name);
-    else unticked.push(str);
+    if (!item.checked) {
+      const str = item.qty != null ? `${item.name} ${item.qty}${item.unit ? ' ' + item.unit : ''}` : item.name;
+      unticked.push(str);
+    }
   });
 
-  let text = unticked.length > 0 ? `🛒 ${unticked.join(', ')}` : '🛒 (nothing to buy)';
-  if (ticked.length > 0) text += ` (already have: ${ticked.join(', ')})`;
+  const text = unticked.length > 0 ? unticked.join(', ') : '(nothing to buy)';
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!')).catch(() => fallbackCopy(text));
@@ -1937,6 +1983,54 @@ function fallbackCopy(text) {
   try { document.execCommand('copy'); alert('Copied to clipboard!'); }
   catch { alert('Could not copy. Text:\n\n' + text); }
   document.body.removeChild(ta);
+}
+
+// ═══════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ═══════════════════════════════════════════════════
+function exportData() {
+  const json = JSON.stringify(db, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = localStr(new Date());
+  a.href = url;
+  a.download = `meal-planner-backup-${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      // Basic validation — check for at least one known key
+      if (!imported.ingredients && !imported.dishes && !imported.weeks) {
+        alert('This does not appear to be a valid Meal Planner backup file.');
+        return;
+      }
+      if (!confirm('This will replace all your current data with the backup. Continue?')) return;
+      db = imported;
+      // Ensure required arrays exist in case backup is from older version
+      ['ingredients','dishes','readyMeals','servingGuide','shoppingList','shoppingExtras'].forEach(k => {
+        if (!db[k]) db[k] = [];
+      });
+      if (!db.weeks) db.weeks = {};
+      saveData();
+      render();
+      alert('Data restored successfully.');
+    } catch {
+      alert('Could not read the file. Make sure it is a valid JSON backup.');
+    }
+  };
+  reader.readAsText(file);
+  // Reset input so the same file can be re-imported if needed
+  event.target.value = '';
 }
 
 // ═══════════════════════════════════════════════════
