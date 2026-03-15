@@ -411,7 +411,7 @@
   .ing-row { display: flex; gap: 6px; align-items: flex-end; margin-bottom: 6px; }
   .ing-row .form-input { flex: 1; }
   .ing-row .form-input.qty { max-width: 70px; }
-  .ing-row .form-input.unit { max-width: 80px; }
+  .ing-row .form-input.unit { max-width: 80px; text-transform: lowercase; }
   .remove-ing { background: none; border: none; color: var(--red); font-size: 18px; cursor: pointer; padding: 2px 4px; line-height: 1; margin-bottom: 2px; }
 
   /* ── CONFIRM DELETE INLINE ── */
@@ -435,8 +435,17 @@
   /* ── DETAIL MODAL ── */
   .detail-section { margin-bottom: 14px; }
   .detail-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 6px; }
-  .detail-ing-list { display: flex; flex-direction: column; gap: 4px; }
-  .detail-ing-item { font-size: 13px; padding: 5px 10px; background: var(--green-light); border-radius: 6px; }
+  .detail-ing-table { width: 100%; border-collapse: collapse; }
+  .detail-ing-table td { padding: 5px 8px; font-size: 13px; background: var(--green-light); border-bottom: 2px solid white; }
+  .detail-ing-table tr:first-child td:first-child { border-radius: 6px 0 0 0; }
+  .detail-ing-table tr:first-child td:last-child { border-radius: 0 6px 0 0; }
+  .detail-ing-table tr:last-child td { border-bottom: none; }
+  .detail-ing-table tr:last-child td:first-child { border-radius: 0 0 0 6px; }
+  .detail-ing-table tr:last-child td:last-child { border-radius: 0 0 6px 0; }
+  .dit-name { font-weight: 600; width: 55%; }
+  .dit-qty { text-align: right; width: 20%; white-space: nowrap; }
+  .dit-unit { color: var(--text-muted); width: 25%; padding-left: 6px; white-space: nowrap; }
+  .unit-field { text-transform: lowercase; }
   .detail-notes { font-size: 13px; color: #444; background: #f9f7f4; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); line-height: 1.5; }
   .detail-checkbox { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--green-light); border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--green-dark); }
   .detail-checkbox input { width: 18px; height: 18px; accent-color: var(--green-primary); }
@@ -1126,7 +1135,7 @@ function renderPantry() {
       html += `<div class="item-row">
         ${delBtn('ing', item.id)}
         <div class="item-main">
-          <div class="item-name">${escHtml(item.name)} <span style="font-weight:400">${item.qty} ${item.unit}</span></div>
+          <div class="item-name">${escHtml(item.name)} <span style="font-weight:400">${item.qty} ${(item.unit||'').toLowerCase()}</span></div>
           <div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;align-items:center">
             ${catBadge(item.category)}
             ${expiryBadge(item.expiry)}
@@ -1168,7 +1177,7 @@ function openIngModal(id) {
       </div>
       <div class="form-group">
         <label class="form-label">Unit</label>
-        <input class="form-input" id="ing-unit" value="${escHtml(ing?.unit||'')}" placeholder="kg, ml…">
+        <input class="form-input unit-field" id="ing-unit" value="${escHtml(ing?.unit||'')}" placeholder="kg, ml…">
       </div>
     </div>
     <div class="form-row">
@@ -1206,7 +1215,7 @@ function saveIng(id) {
     id: id || nextId(),
     name,
     qty: parseFloat(document.getElementById('ing-qty').value) || 0,
-    unit: document.getElementById('ing-unit').value.trim(),
+    unit: document.getElementById('ing-unit').value.trim().toLowerCase(),
     category: document.getElementById('ing-cat').value,
     loc: document.getElementById('ing-loc').value,
     expiry: document.getElementById('ing-expiry').value || '',
@@ -1398,20 +1407,22 @@ function openDishDetail(id) {
   const selected = isDishSelected(id, viewWeek);
 
   openModal(`
-    <div class="modal-title">${escHtml(dish.name)}</div>
-    <div class="detail-section">
-      <div class="detail-label">Category</div>
-      ${catBadge(dish.category)}
-    </div>
+    <div class="modal-title">${escHtml(dish.name)} ${catBadge(dish.category)}</div>
     ${dish.notes ? `<div class="detail-section">
       <div class="detail-label">Cooking Notes</div>
       <div class="detail-notes">${escHtml(dish.notes)}</div>
     </div>` : ''}
     <div class="detail-section">
       <div class="detail-label">Ingredients (${dish.ingredients.length})</div>
-      <div class="detail-ing-list">
-        ${dish.ingredients.map(i=>`<div class="detail-ing-item">${escHtml(i.name)} — ${i.qty} ${i.unit}</div>`).join('')}
-      </div>
+      <table class="detail-ing-table">
+        <tbody>
+          ${dish.ingredients.map(i=>`<tr>
+            <td class="dit-name">${escHtml(i.name)}</td>
+            <td class="dit-qty">${i.qty}</td>
+            <td class="dit-unit">${escHtml((i.unit||'').toLowerCase())}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
     </div>
     <label class="detail-checkbox">
       <input type="checkbox" ${selected?'checked':''} onchange="toggleDish(${id});updateDetailCheckbox(this,${id})">
@@ -1505,7 +1516,7 @@ function saveDish(id) {
   ingRows.forEach(row => {
     const inputs = row.querySelectorAll('input');
     const n = inputs[0].value.trim();
-    if (n) ingredients.push({ name: n, qty: parseFloat(inputs[1].value)||0, unit: inputs[2].value.trim() });
+    if (n) ingredients.push({ name: n, qty: parseFloat(inputs[1].value)||0, unit: inputs[2].value.trim().toLowerCase() });
   });
   const obj = {
     id: id || nextId(),
@@ -1708,7 +1719,7 @@ function renderServing() {
         ${servingEditMode ? `<td>${delBtn('serving', r.id)}</td>` : ''}
         <td style="font-weight:600">${escHtml(r.dish)}</td>
         <td><span class="meal-badge ${mealClass}">${escHtml(r.mealType)}</span></td>
-        <td style="max-width:90px;word-break:break-word">${r.qty} ${escHtml(r.unit)}</td>
+        <td style="max-width:90px;word-break:break-word">${r.qty} ${escHtml((r.unit||'').toLowerCase())}</td>
         <td style="color:var(--text-muted);font-size:12px">${escHtml(r.notes || '')}</td>
         ${servingEditMode ? `<td><button class="btn-icon" onclick="openServingModal(${r.id})">✏️</button></td>` : ''}
       </tr>`;
@@ -1754,7 +1765,7 @@ function openServingModal(id) {
     </div>
     <div class="form-group">
       <label class="form-label">Unit</label>
-      <input class="form-input" id="sg-unit" value="${escHtml(r?.unit || '')}" placeholder="e.g. g uncooked">
+      <input class="form-input unit-field" id="sg-unit" value="${escHtml(r?.unit || '')}" placeholder="e.g. g uncooked">
     </div>
     <div class="form-group">
       <label class="form-label">Notes (optional)</label>
@@ -1778,7 +1789,7 @@ function saveServing(id) {
     dish,
     mealType: document.getElementById('sg-meal').value,
     qty: parseFloat(document.getElementById('sg-qty').value) || 0,
-    unit: document.getElementById('sg-unit').value.trim(),
+    unit: document.getElementById('sg-unit').value.trim().toLowerCase(),
     notes: document.getElementById('sg-notes').value.trim(),
   };
   if (id) {
@@ -1828,8 +1839,8 @@ function renderShop() {
   } else {
     planItems.forEach(item => {
       const pantryMeta = item.pantryQty !== null
-        ? `Needed: ${item.needed} ${escHtml(item.unit)} · Pantry: ${item.pantryQty} ${escHtml(item.pantryUnit || '')}${item.pantryLoc ? ' · ' + item.pantryLoc : ''}`
-        : `Needed: ${item.needed} ${escHtml(item.unit)} · None at home`;
+        ? `Needed: ${item.needed} ${escHtml((item.unit||'').toLowerCase())} · Pantry: ${item.pantryQty} ${escHtml((item.pantryUnit||'').toLowerCase())}${item.pantryLoc ? ' · ' + item.pantryLoc : ''}`
+        : `Needed: ${item.needed} ${escHtml((item.unit||'').toLowerCase())} · None at home`;
       html += `<div class="shop-item${item.checked ? ' checked' : ''}">
         <input type="checkbox" class="shop-check" ${item.checked ? 'checked' : ''} onchange="toggleShopItem('plan',${item.id},this.checked)">
         <div class="shop-item-body">
@@ -1839,7 +1850,7 @@ function renderShop() {
           </div>
           <div class="shop-item-right">
             <input class="shop-tobuy-input" type="number" step="0.01" value="${item.toBuyQty ?? item.needed}" oninput="updateToBuy(${item.id},this.value)" onchange="updateToBuy(${item.id},this.value)">
-            <span class="shop-tobuy-unit">${escHtml(item.unit)}</span>
+            <span class="shop-tobuy-unit">${escHtml((item.unit||'').toLowerCase())}</span>
           </div>
         </div>
       </div>`;
@@ -1861,7 +1872,7 @@ function renderShop() {
           </div>
           ${(item.qty != null || item.unit) ? `<div class="shop-item-right">
             <span class="shop-tobuy-input" style="display:inline-block;text-align:center;padding:5px 8px;font-size:14px;font-weight:700;color:var(--green-dark);background:var(--green-light);border:1.5px solid var(--border);border-radius:6px;min-width:68px">${item.qty != null ? item.qty : '—'}</span>
-            <span class="shop-tobuy-unit">${escHtml(item.unit || '')}</span>
+            <span class="shop-tobuy-unit">${escHtml((item.unit||'').toLowerCase())}</span>
           </div>` : ''}
         </div>
       </div>`;
@@ -1917,7 +1928,7 @@ function openShopExtraModal() {
       </div>
       <div class="form-group">
         <label class="form-label">Unit (optional)</label>
-        <input class="form-input" id="sx-unit" placeholder="e.g. kg, pcs">
+        <input class="form-input unit-field" id="sx-unit" placeholder="e.g. kg, pcs">
       </div>
     </div>
     <div class="modal-footer">
@@ -1937,7 +1948,7 @@ function saveShopExtra() {
     id: nextId(),
     name,
     qty: parseFloat(document.getElementById('sx-qty').value) || null,
-    unit: document.getElementById('sx-unit').value.trim(),
+    unit: document.getElementById('sx-unit').value.trim().toLowerCase(),
     checked: false,
   });
   saveData();
