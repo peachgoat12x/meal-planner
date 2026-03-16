@@ -388,7 +388,7 @@
     animation: slideUp 0.25s ease;
   }
   @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-  .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+  .modal-title { font-size: 19px; font-weight: 700; margin-bottom: 16px; }
   .modal-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
   .modal-footer-right { display: flex; gap: 8px; }
 
@@ -438,17 +438,18 @@
   .detail-section { margin-bottom: 14px; }
   .detail-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 6px; }
   .detail-ing-table { width: 100%; border-collapse: collapse; }
-  .detail-ing-table td { padding: 5px 8px; font-size: 13px; background: var(--green-light); border-bottom: 2px solid white; }
+  .detail-ing-table td { padding: 5px 8px; font-size: 14px; background: var(--green-light); border-bottom: 2px solid white; }
   .detail-ing-table tr:first-child td:first-child { border-radius: 6px 0 0 0; }
   .detail-ing-table tr:first-child td:last-child { border-radius: 0 6px 0 0; }
   .detail-ing-table tr:last-child td { border-bottom: none; }
   .detail-ing-table tr:last-child td:first-child { border-radius: 0 0 0 6px; }
   .detail-ing-table tr:last-child td:last-child { border-radius: 0 0 6px 0; }
-  .dit-name { font-weight: 600; width: 55%; }
-  .dit-qty { text-align: right; width: 20%; white-space: nowrap; }
-  .dit-unit { color: var(--text-muted); width: 25%; padding-left: 6px; white-space: nowrap; }
+  .dit-name { font-weight: 600; }
+  .dit-qtyunit { width: 80px; text-align: right; white-space: nowrap; }
+  .dit-cat { width: 25%; padding-left: 8px; }
   .unit-field { text-transform: lowercase; }
-  .detail-notes { font-size: 13px; color: #444; background: #f9f7f4; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); line-height: 1.5; }
+  .detail-notes { font-size: 15px; color: #444; background: #f9f7f4; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); line-height: 1.7; }
+  .recipe-section-header { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; border-top: 1px solid var(--border); margin-top: 10px; margin-bottom: 4px; padding-top: 8px; }
   .detail-checkbox { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--green-light); border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--green-dark); }
   .detail-checkbox input { width: 18px; height: 18px; accent-color: var(--green-primary); }
 
@@ -784,14 +785,33 @@ if (!db.servingGuide || db.servingGuide.length === 0) {
   saveData();
 }
 // Ensure required arrays exist
-['ingredients','dishes','readyMeals','servingGuide','shoppingList','shoppingExtras'].forEach(k => {
+['ingredients','dishes','readyMeals','servingGuide','shoppingList','shoppingExtras','customUnits'].forEach(k => {
   if (!db[k]) db[k] = [];
 });
 if (!db.weeks) db.weeks = {};
 
 // ═══════════════════════════════════════════════════
-// ID HELPER
+// UNITS
 // ═══════════════════════════════════════════════════
+const STANDARD_UNITS = ['g','kg','ml','l','tbsp','tsp','cup','pc','btl','pkt','clv','blk'];
+
+function unitComboHtml(id, currentValue) {
+  const custom = db.customUnits || [];
+  const allUnits = [...STANDARD_UNITS, ...custom];
+  return `<input class="form-input unit-field" id="${id}" value="${escHtml(currentValue||'')}" placeholder="Unit" list="${id}-list" autocomplete="off">
+  <datalist id="${id}-list">${allUnits.map(u=>`<option value="${u}">`).join('')}</datalist>`;
+}
+
+
+function saveCustomUnit(val) {
+  if (!val) return;
+  const v = val.trim().toLowerCase();
+  if (!v || STANDARD_UNITS.includes(v) || (db.customUnits||[]).includes(v)) return;
+  if (!db.customUnits) db.customUnits = [];
+  db.customUnits.push(v);
+  saveData();
+}
+
 function nextId() {
   const id = db.nextId || 11;
   db.nextId = id + 1;
@@ -1183,7 +1203,7 @@ function openIngModal(id) {
       </div>
       <div class="form-group">
         <label class="form-label">Unit</label>
-        <input class="form-input unit-field" id="ing-unit" value="${escHtml(ing?.unit||'')}" placeholder="kg, ml…">
+        ${unitComboHtml('ing-unit', ing?.unit||'')}
       </div>
     </div>
     <div class="form-row">
@@ -1226,6 +1246,7 @@ function saveIng(id) {
     loc: document.getElementById('ing-loc').value,
     expiry: document.getElementById('ing-expiry').value || '',
   };
+  saveCustomUnit(document.getElementById('ing-unit').value);
   if (id) {
     const idx = db.ingredients.findIndex(x => x.id === id);
     db.ingredients[idx] = obj;
@@ -1418,28 +1439,47 @@ function openDishDetail(id) {
   if (!dish) return;
   const selected = isDishSelected(id, viewWeek);
 
+  // Item 5: pre-pass to resolve ingredient categories via pantry lookup
+  const resolvedCats = dish.ingredients.map(i => {
+    const pantryMatch = db.ingredients.find(p => p.name.toLowerCase() === i.name.toLowerCase());
+    return pantryMatch?.category || i.category || null;
+  });
+  const hasCategory = resolvedCats.some(c => c !== null);
+
+  // Item 3b: single-pass ## section parser
+  function renderNotes(notes) {
+    if (!notes) return '';
+    return notes.split('\n').map(line => {
+      const escaped = escHtml(line);
+      if (escaped.startsWith('##')) {
+        return `<div class="recipe-section-header">${escaped.slice(2).trim()}</div>`;
+      }
+      return escaped || '<br>';
+    }).join('\n');
+  }
+
   openModal(`
     <div class="modal-title">${escHtml(dish.name)} ${catBadge(dish.category)}</div>
+    <label class="detail-checkbox" style="margin-bottom:14px">
+      <input type="checkbox" ${selected?'checked':''} onchange="toggleDish(${id});updateDetailCheckbox(this,${id})">
+      Selected for Week of ${fmtDateFull(viewWeek)}
+    </label>
     ${dish.notes ? `<div class="detail-section">
-      <div class="detail-label">Cooking Notes</div>
-      <div class="detail-notes">${escHtml(dish.notes).replace(/\n/g,'<br>')}</div>
+      <div class="detail-label">Recipe</div>
+      <div class="detail-notes">${renderNotes(dish.notes)}</div>
     </div>` : ''}
     <div class="detail-section">
       <div class="detail-label">Ingredients (${dish.ingredients.length}) · serves ${dish.baseServings || 4}</div>
       <table class="detail-ing-table">
         <tbody>
-          ${dish.ingredients.map(i=>`<tr>
+          ${dish.ingredients.map((i, idx) => `<tr>
             <td class="dit-name">${escHtml(i.name)}</td>
-            <td class="dit-qty">${i.qty}</td>
-            <td class="dit-unit">${escHtml((i.unit||'').toLowerCase())}</td>
+            <td class="dit-qtyunit">${i.qty} <span style="color:var(--text-muted)">${escHtml((i.unit||'').toLowerCase())}</span></td>
+            ${hasCategory ? `<td class="dit-cat">${resolvedCats[idx] ? catBadge(resolvedCats[idx]) : ''}</td>` : ''}
           </tr>`).join('')}
         </tbody>
       </table>
     </div>
-    <label class="detail-checkbox">
-      <input type="checkbox" ${selected?'checked':''} onchange="toggleDish(${id});updateDetailCheckbox(this,${id})">
-      Selected for Week of ${fmtDateFull(viewWeek)}
-    </label>
     <div class="modal-footer">
       ${delBtn('dish', id)}
       <div class="modal-footer-right">
@@ -1465,7 +1505,7 @@ function openDishModal(id) {
     <div class="ing-row" id="ing-row-${i}">
       <input class="form-input" placeholder="Ingredient name" value="${escHtml(ing.name||'')}">
       <input class="form-input qty" type="number" step="0.01" placeholder="Qty" value="${ing.qty||''}">
-      <input class="form-input unit" placeholder="Unit" value="${escHtml(ing.unit||'')}">
+      ${unitComboHtml('ing-unit-'+i, ing.unit||'')}
       <button class="remove-ing" onclick="removeDishIng(this)">×</button>
     </div>`).join('');
 
@@ -1488,8 +1528,8 @@ function openDishModal(id) {
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Cooking Notes</label>
-      <textarea class="form-textarea" id="dish-notes">${escHtml(dish?.notes||'')}</textarea>
+      <label class="form-label">Recipe</label>
+      <textarea class="form-textarea" id="dish-notes" placeholder="## Prep&#10;Marinate chicken for 30 mins...&#10;&#10;## Cook&#10;Fry on high heat...">${escHtml(dish?.notes||'')}</textarea>
     </div>
     <div class="form-group">
       <label class="form-label">Ingredients</label>
@@ -1514,7 +1554,7 @@ function addDishIng() {
   row.innerHTML = `
     <input class="form-input" placeholder="Ingredient name" value="">
     <input class="form-input qty" type="number" step="0.01" placeholder="Qty" value="">
-    <input class="form-input unit" placeholder="Unit" value="">
+    ${unitComboHtml('ing-unit-'+i, '')}
     <button class="remove-ing" onclick="removeDishIng(this)">×</button>`;
   container.appendChild(row);
 }
@@ -1532,7 +1572,11 @@ function saveDish(id) {
   ingRows.forEach(row => {
     const inputs = row.querySelectorAll('input');
     const n = inputs[0].value.trim();
-    if (n) ingredients.push({ name: n, qty: parseFloat(inputs[1].value)||0, unit: inputs[2].value.trim().toLowerCase() });
+    const unitVal = inputs[2].value.trim();
+    if (n) {
+      saveCustomUnit(unitVal);
+      ingredients.push({ name: n, qty: parseFloat(inputs[1].value)||0, unit: unitVal.toLowerCase() });
+    }
   });
   const obj = {
     id: id || nextId(),
@@ -1793,7 +1837,7 @@ function openServingModal(id) {
     </div>
     <div class="form-group">
       <label class="form-label">Unit</label>
-      <input class="form-input unit-field" id="sg-unit" value="${escHtml(r?.unit || '')}" placeholder="e.g. g uncooked">
+      ${unitComboHtml('sg-unit', r?.unit||'')}
     </div>
     <div class="form-group">
       <label class="form-label">Notes (optional)</label>
@@ -1820,6 +1864,7 @@ function saveServing(id) {
     unit: document.getElementById('sg-unit').value.trim().toLowerCase(),
     notes: document.getElementById('sg-notes').value.trim(),
   };
+  saveCustomUnit(document.getElementById('sg-unit').value);
   if (id) {
     const idx = db.servingGuide.findIndex(x => x.id === id);
     db.servingGuide[idx] = obj;
@@ -1848,7 +1893,7 @@ function renderShop() {
       <span class="shop-title">🛒 Grocery List</span>
       <div class="shop-header-btns">
         <button class="btn-secondary" style="padding:6px 10px;font-size:12px" onclick="copyShopList()" title="Copy list">📋 Copy</button>
-        ${hasTicked ? `<button class="btn-secondary" style="padding:6px 10px;font-size:12px;color:#888;border-color:#ccc" onclick="clearTicked()" title="Clear ticked">Clear ✓</button>` : ''}
+        ${hasTicked ? `<button class="btn-icon" onclick="clearTicked()" title="Delete ticked items">🗑️</button>` : ''}
         <button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="openShopExtraModal()">+ Item</button>
       </div>
     </div>`;
@@ -1965,7 +2010,7 @@ function openShopExtraModal() {
       </div>
       <div class="form-group">
         <label class="form-label">Unit (optional)</label>
-        <input class="form-input unit-field" id="sx-unit" placeholder="e.g. kg, pcs">
+        ${unitComboHtml('sx-unit', '')}
       </div>
     </div>
     <div class="modal-footer">
@@ -1988,6 +2033,7 @@ function saveShopExtra() {
     unit: document.getElementById('sx-unit').value.trim().toLowerCase(),
     checked: false,
   });
+  saveCustomUnit(document.getElementById('sx-unit').value);
   saveData();
   closeModal();
   render();
