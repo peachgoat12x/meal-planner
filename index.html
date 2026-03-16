@@ -390,8 +390,8 @@
   }
   .modal-fullscreen {
     border-radius: 0;
-    max-height: 100vh;
-    height: 100vh;
+    max-height: 100dvh;
+    height: 100dvh;
     padding: 0 0 30px;
   }
   .recipe-topbar {
@@ -919,6 +919,11 @@ function catBadge(cat) {
   return `<span class="badge ${map[cat] || 'badge-grey'}">${cat}</span>`;
 }
 
+function dishIdByName(name) {
+  const dish = db.dishes.find(d => d.name.toLowerCase() === name.toLowerCase());
+  return dish ? dish.id : null;
+}
+
 function expiryBadge(expiry) {
   if (!expiry) return '';
   const days = daysUntilExpiry(expiry);
@@ -1119,7 +1124,7 @@ function renderHome() {
     db.readyMeals.forEach(m => {
       html += `<div class="item-row">
         <div class="item-main">
-          <div class="item-name">${m.name}</div>
+          ${(() => { const did = dishIdByName(m.name); return did ? `<div class="item-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${did})">${m.name}</div>` : `<div class="item-name">${m.name}</div>`; })()}
           <div class="item-sub">${m.servings} servings · ${m.eatBy ? 'Eat by ' + fmtDate(m.eatBy) : ''}</div>
         </div>
         ${m.category ? catBadge(m.category) : ''}
@@ -1735,7 +1740,7 @@ function renderReady() {
         <div class="ready-card-top">
           ${delBtn('ready', m.id)}
           <div class="item-main">
-            <div class="item-name">${escHtml(m.name)}</div>
+            ${(() => { const did = dishIdByName(m.name); return did ? `<div class="item-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${did})">${escHtml(m.name)}</div>` : `<div class="item-name">${escHtml(m.name)}</div>`; })()}
           </div>
           <div class="ready-card-badges">
             ${m.category ? catBadge(m.category) : ''}
