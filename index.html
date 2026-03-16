@@ -604,4 +604,1495 @@
     text-align: center;
   }
   .shop-tobuy-input:focus { outline: none; border-color: var(--green-primary); }
-  .shop-tobuy-unit { font-size: 11px;
+  .shop-tobuy-unit { font-size: 11px; color: #555; text-align: right; }
+  .shop-tobuy-unit-input { font-size: 11px; color: #555; text-align: right; width: 52px; border: none; background: transparent; padding: 0; font-family: inherit; }
+  .shop-tobuy-unit-input:focus { outline: 1px solid var(--green-primary); border-radius: 3px; background: white; }
+  .shop-check {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    accent-color: var(--green-primary);
+    cursor: pointer;
+  }
+  .shop-empty { padding: 20px 0; text-align: center; color: var(--text-muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- HEADER -->
+  <div id="header">
+    <div id="header-title">🍚 Meal Planner</div>
+    <div id="header-sub">Weekly cooking tracker</div>
+    <div id="week-strip">
+      <button class="week-arrow" onclick="shiftWeek(-1)">‹</button>
+      <div id="week-dates"></div>
+      <button class="week-arrow" onclick="shiftWeek(1)">›</button>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="content"></div>
+
+  <!-- TAB BAR -->
+  <div id="tab-bar">
+    <button class="tab-btn active" onclick="switchTab(0)"><span class="tab-icon">🏠</span>Home</button>
+    <button class="tab-btn" onclick="switchTab(1)"><span class="tab-icon">📖</span>Dishes</button>
+    <button class="tab-btn" onclick="switchTab(2)"><span class="tab-icon">🍱</span>Ready</button>
+    <button class="tab-btn" onclick="switchTab(3)"><span class="tab-icon">🥬</span>Pantry</button>
+    <button class="tab-btn" onclick="switchTab(4)"><span class="tab-icon">⚖️</span>Serving</button>
+    <button class="tab-btn" onclick="switchTab(5)"><span class="tab-icon">🛒</span>List</button>
+  </div>
+
+  <!-- MODAL OVERLAY -->
+  <div class="modal-overlay hidden" id="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" id="modal-content" onclick="event.stopPropagation()"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// DATE HELPERS
+// ═══════════════════════════════════════════════════
+function localStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function daysUntilExpiry(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const expiry = new Date(y, m - 1, d);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiry.setHours(0, 0, 0, 0);
+  return Math.floor((expiry - today) / 86400000);
+}
+
+function addWks(dateStr, n) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + n * 7);
+  return localStr(dt);
+}
+
+function getThisMonday() {
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  const day = t.getDay(); // 0=Sun
+  const diff = day === 0 ? -6 : 1 - day;
+  t.setDate(t.getDate() + diff);
+  return localStr(t);
+}
+
+function fmtDate(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${d} ${months[m - 1]}`;
+}
+
+function fmtDateFull(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${d} ${months[m - 1]} ${y}`;
+}
+
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+const thisMonday = getThisMonday();
+let viewWeek = thisMonday;
+let activeTab = 0;
+let confirmDel = null;
+
+// Per-tab UI state
+let pantrySearch = '';
+let pantryLocFilter = 'All';
+let pantryCatFilter = 'All';
+let pantryExpFilter = false;
+let dishCatFilter = 'All';
+let thisWeekCollapsed = false;
+let thisWeekUserSet = false; // tracks whether user has manually toggled the panel
+let dishReplaceConfirm = false;
+
+// ═══════════════════════════════════════════════════
+// LOCAL STORAGE
+// ═══════════════════════════════════════════════════
+const LS_KEY = 'mealPrepPlanner';
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveData() {
+  localStorage.setItem(LS_KEY, JSON.stringify(db));
+}
+
+// ═══════════════════════════════════════════════════
+// DEFAULT / SAMPLE DATA
+// ═══════════════════════════════════════════════════
+const SAMPLE_DATA = {
+  nextId: 11,
+  ingredients: [
+    { id: 1, name: 'Pork belly', category: 'Protein', qty: 1.5, unit: 'kg', loc: 'Freezer', expiry: '2026-09-01' },
+    { id: 2, name: 'Broccoli', category: 'Fibre', qty: 2, unit: 'pieces', loc: 'Fridge', expiry: '2026-03-18' },
+    { id: 3, name: 'Soy sauce', category: 'Condiments', qty: 500, unit: 'ml', loc: 'Pantry', expiry: '2026-12-01' },
+    { id: 4, name: 'Jasmine rice', category: 'Carbs', qty: 5, unit: 'kg', loc: 'Pantry', expiry: '2027-01-01' },
+  ],
+  dishes: [
+    { id: 1, name: 'Braised Pork Belly', category: 'Protein', notes: 'Low and slow 2hrs. Star anise + dark soy.', ingredients: [{ name: 'Pork belly', qty: 1.5, unit: 'kg' }, { name: 'Soy sauce', qty: 100, unit: 'ml' }] },
+    { id: 2, name: 'Stir-fried Broccoli', category: 'Fibre', notes: 'High heat, oyster sauce finish.', ingredients: [{ name: 'Broccoli', qty: 2, unit: 'pieces' }, { name: 'Oyster sauce', qty: 2, unit: 'tbsp' }] },
+    { id: 3, name: 'Soy Sauce Chicken', category: 'Protein', notes: 'Simmer in master stock 45 min.', ingredients: [{ name: 'Whole chicken', qty: 1.5, unit: 'kg' }, { name: 'Soy sauce', qty: 150, unit: 'ml' }] },
+    { id: 4, name: 'Steamed Egg Tofu', category: 'Fibre', notes: 'Steam 8 min, spring onion oil.', ingredients: [{ name: 'Egg tofu', qty: 2, unit: 'pieces' }] },
+  ],
+  readyMeals: [
+    { id: 9, name: 'Braised Pork Belly', servings: 8, cooked: '2026-03-10', loc: 'Freezer', eatBy: '2026-04-01', note: 'Middle shelf' },
+    { id: 10, name: 'Stir-fried Broccoli', servings: 4, cooked: '2026-03-10', loc: 'Fridge', eatBy: '2026-03-20', note: '' },
+  ],
+  weeks: {},
+  servingGuide: [
+    { id: 1, dish: 'Pasta', mealType: 'Lunch', qty: 75, unit: 'g uncooked', notes: 'Cooks to 186g' },
+    { id: 2, dish: 'Pasta', mealType: 'Dinner', qty: 50, unit: 'g uncooked', notes: 'Cooks to 124g' },
+    { id: 3, dish: 'Rice', mealType: 'Lunch', qty: 0.5, unit: 'rice cup uncooked', notes: '190g cooked, fits 1 giant silicone tray' },
+    { id: 4, dish: 'Rice', mealType: 'Dinner', qty: 0.25, unit: 'rice cup uncooked', notes: '95g cooked' },
+    { id: 5, dish: 'Pesto (big green tray)', mealType: 'Lunch', qty: 1.5, unit: 'large ice cubes', notes: 'Per 75g uncooked pasta' },
+    { id: 6, dish: 'Pesto (big green tray)', mealType: 'Dinner', qty: 1, unit: 'large ice cube', notes: 'Per 50g uncooked pasta' },
+    { id: 7, dish: 'Pesto (small tray)', mealType: 'Lunch', qty: 2, unit: 'small cubes', notes: 'Per 75g uncooked pasta' },
+  ],
+  shoppingList: [],
+  shoppingExtras: [],
+};
+
+// Inject this week's plan into sample data
+SAMPLE_DATA.weeks[thisMonday] = { selectedDishes: [1, 2], dishServings: { '1': 10, '2': 8 } };
+
+let db = loadData();
+if (!db) {
+  db = JSON.parse(JSON.stringify(SAMPLE_DATA));
+  saveData();
+}
+// Ensure servingGuide is pre-populated
+if (!db.servingGuide || db.servingGuide.length === 0) {
+  db.servingGuide = JSON.parse(JSON.stringify(SAMPLE_DATA.servingGuide));
+  saveData();
+}
+// Ensure required arrays exist
+['ingredients','dishes','readyMeals','servingGuide','shoppingList','shoppingExtras'].forEach(k => {
+  if (!db[k]) db[k] = [];
+});
+if (!db.weeks) db.weeks = {};
+
+// ═══════════════════════════════════════════════════
+// ID HELPER
+// ═══════════════════════════════════════════════════
+function nextId() {
+  const id = db.nextId || 11;
+  db.nextId = id + 1;
+  return id;
+}
+
+// ═══════════════════════════════════════════════════
+// WEEK DATA HELPERS
+// ═══════════════════════════════════════════════════
+function getWeekData(wk) {
+  if (!db.weeks[wk]) db.weeks[wk] = { selectedDishes: [], dishServings: {} };
+  return db.weeks[wk];
+}
+
+function isDishSelected(dishId, wk) {
+  return getWeekData(wk).selectedDishes.includes(dishId);
+}
+
+function toggleDishSelection(dishId, wk) {
+  const wd = getWeekData(wk);
+  const idx = wd.selectedDishes.indexOf(dishId);
+  if (idx >= 0) {
+    wd.selectedDishes.splice(idx, 1);
+    delete wd.dishServings[dishId];
+  } else {
+    wd.selectedDishes.push(dishId);
+    wd.dishServings[dishId] = 6;
+  }
+  saveData();
+}
+
+function getDishServings(dishId, wk) {
+  const wd = getWeekData(wk);
+  return wd.dishServings[dishId] || 6;
+}
+
+function setDishServings(dishId, wk, n) {
+  const wd = getWeekData(wk);
+  wd.dishServings[dishId] = Math.max(1, n);
+  saveData();
+}
+
+// ═══════════════════════════════════════════════════
+// BADGE HELPERS
+// ═══════════════════════════════════════════════════
+function locBadge(loc) {
+  const map = { Fridge: 'badge-fridge', Freezer: 'badge-freezer', Pantry: 'badge-pantry' };
+  return `<span class="badge ${map[loc] || 'badge-grey'}">${loc}</span>`;
+}
+
+function catBadge(cat) {
+  const map = {
+    Protein: 'badge-protein', Fibre: 'badge-fibre', Carbs: 'badge-carbs',
+    'Dry Goods': 'badge-drygds', Condiments: 'badge-condiments', Snacks: 'badge-snacks',
+    Drinks: 'badge-drinks', Sauces: 'badge-sauces', 'Full Meal': 'badge-fullmeal'
+  };
+  return `<span class="badge ${map[cat] || 'badge-grey'}">${cat}</span>`;
+}
+
+function expiryBadge(expiry) {
+  if (!expiry) return '';
+  const days = daysUntilExpiry(expiry);
+  if (days < 0) return `<span class="badge badge-red">Expired</span>`;
+  if (days <= 4) return `<span class="badge badge-red">${days}d</span>`;
+  if (days <= 14) return `<span class="badge badge-amber">${days}d</span>`;
+  if (days <= 30) return `<span class="badge badge-yellow">${days}d</span>`;
+  return `<span style="font-size:11px;color:var(--text-muted)">${fmtDate(expiry)}</span>`;
+}
+
+// ═══════════════════════════════════════════════════
+// DELETE PATTERN
+// ═══════════════════════════════════════════════════
+function delBtn(scope, id) {
+  if (confirmDel && confirmDel.scope === scope && confirmDel.id === id) {
+    return `<div class="del-confirm">
+      <button class="btn-danger" onclick="doDel('${scope}',${id})">✓</button>
+      <button class="btn-cancel" onclick="cancelDel()">✗</button>
+    </div>`;
+  }
+  return `<button class="btn-icon" onclick="startDel('${scope}',${id})" title="Delete">🗑️</button>`;
+}
+
+function startDel(scope, id) {
+  confirmDel = { scope, id };
+  render();
+}
+
+function cancelDel() {
+  confirmDel = null;
+  render();
+}
+
+function doDel(scope, id) {
+  confirmDel = null;
+  id = Number(id);
+  if (scope === 'ing') db.ingredients = db.ingredients.filter(x => x.id !== id);
+  else if (scope === 'dish') { db.dishes = db.dishes.filter(x => x.id !== id); closeModal(); }
+  else if (scope === 'ready') db.readyMeals = db.readyMeals.filter(x => x.id !== id);
+  else if (scope === 'serving') db.servingGuide = db.servingGuide.filter(x => x.id !== id);
+  else if (scope === 'shopX') db.shoppingExtras = db.shoppingExtras.filter(x => x.id !== id);
+  saveData();
+  render();
+}
+
+// ═══════════════════════════════════════════════════
+// SCROLL PRESERVATION
+// ═══════════════════════════════════════════════════
+function render() {
+  const scrollY = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop;
+  renderContent();
+  requestAnimationFrame(() => window.scrollTo(0, scrollY));
+}
+
+function renderContent() {
+  const content = document.getElementById('content');
+  const strip = document.getElementById('week-strip');
+  const header = document.getElementById('header');
+  const weekAware = activeTab === 0 || activeTab === 1;
+  strip.classList.toggle('hidden', !weekAware);
+  header.classList.toggle('no-strip', !weekAware);
+
+  if (weekAware) renderWeekStrip();
+
+  const tabs = [renderHome, renderDishes, renderReady, renderPantry, renderServing, renderShop];
+  content.innerHTML = tabs[activeTab]();
+}
+
+// ═══════════════════════════════════════════════════
+// WEEK STRIP
+// ═══════════════════════════════════════════════════
+function renderWeekStrip() {
+  const dates = [-1, 0, 1, 2].map(n => addWks(viewWeek, n));
+  const container = document.getElementById('week-dates');
+  const isCurrentWeek = viewWeek === thisMonday;
+  const nowBtn = `<button class="now-btn${isCurrentWeek ? '' : ' active'}" onclick="jumpToNow()" title="Current week">Now</button>`;
+  container.innerHTML = nowBtn + dates.map(d => {
+    const isSelected = d === viewWeek;
+    const isCurrent = d === thisMonday && !isSelected;
+    let cls = 'week-btn';
+    if (isSelected) cls += ' selected';
+    else if (isCurrent) cls += ' current-week';
+    return `<button class="${cls}" onclick="selectWeek('${d}')">${fmtDate(d)}</button>`;
+  }).join('');
+}
+
+function jumpToNow() {
+  viewWeek = thisMonday;
+  render();
+}
+
+function selectWeek(d) {
+  viewWeek = d;
+  render();
+}
+
+function shiftWeek(n) {
+  viewWeek = addWks(viewWeek, n);
+  render();
+}
+
+// ═══════════════════════════════════════════════════
+// TAB SWITCH
+// ═══════════════════════════════════════════════════
+function switchTab(idx) {
+  activeTab = idx;
+  confirmDel = null;
+  dishReplaceConfirm = false;
+  servingEditMode = false;
+  if (idx !== 1) thisWeekUserSet = false;
+  window.scrollTo(0, 0);
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+  renderContent();
+}
+
+// ═══════════════════════════════════════════════════
+// MODAL HELPERS
+// ═══════════════════════════════════════════════════
+function openModal(html) {
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function closeModal(e) {
+  if (!e || e.target === document.getElementById('modal-overlay')) {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    confirmDel = null;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// TAB 1 — HOME
+// ═══════════════════════════════════════════════════
+function renderHome() {
+  const expiringItems = db.ingredients.filter(i => {
+    if (!i.expiry) return false;
+    const d = daysUntilExpiry(i.expiry);
+    return d <= 14;
+  });
+
+  const wd = getWeekData(viewWeek);
+  const selectedDishes = db.dishes.filter(d => wd.selectedDishes.includes(d.id));
+
+  // Group by category
+  const catOrder = ['Protein', 'Fibre', 'Carbs', 'Full Meal'];
+  const grouped = {};
+  selectedDishes.forEach(d => {
+    const cat = d.category;
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(d);
+  });
+
+  let html = '<div class="section" style="padding-top:14px">';
+
+  // Expiry banner
+  if (expiringItems.length > 0) {
+    html += `<div class="expiry-banner" onclick="goToPantryExpiry()">⚠️ ${expiringItems.length} item${expiringItems.length > 1 ? 's' : ''} ${expiringItems.length > 1 ? 'need' : 'needs'} attention</div>`;
+  }
+
+  // Week banner
+  html += `<div class="week-banner-card">
+    <div class="label">Cook Plan</div>
+    <div class="week-title">Week of ${fmtDateFull(viewWeek)}</div>
+  </div>`;
+
+  // Selected dishes
+  if (selectedDishes.length === 0) {
+    html += `<div class="card"><div style="padding:20px 14px;color:var(--text-muted);font-size:13px;text-align:center">No dishes selected for this week.<br>Head to the Dishes tab to build your plan.</div></div>`;
+  } else {
+    html += '<div class="card">';
+    const orderedCats = [...catOrder, ...Object.keys(grouped).filter(c => !catOrder.includes(c))];
+    orderedCats.forEach(cat => {
+      if (!grouped[cat]) return;
+      html += `<div class="section-header">${cat}</div>`;
+      grouped[cat].forEach(dish => {
+        const servings = getDishServings(dish.id, viewWeek);
+        html += `<div class="item-row">
+          <div class="item-main"><div class="item-name">${dish.name}</div></div>
+          <div style="font-size:13px;font-weight:600;color:var(--green-primary)">${servings} servings</div>
+        </div>`;
+      });
+    });
+    html += '</div>';
+  }
+
+  // Ready meals summary — only for current week
+  if (viewWeek === thisMonday && db.readyMeals.length > 0) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">Ready Meals</div>`;
+    html += '<div class="card">';
+    db.readyMeals.forEach(m => {
+      html += `<div class="item-row">
+        <div class="item-main">
+          <div class="item-name">${m.name}</div>
+          <div class="item-sub">${m.servings} servings · ${m.eatBy ? 'Eat by ' + fmtDate(m.eatBy) : ''}</div>
+        </div>
+        ${m.category ? catBadge(m.category) : ''}
+        ${locBadge(m.loc)}
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  html += '</div>';
+
+  // ── DATA BACKUP ──
+  html += `<div class="section" style="padding-bottom:14px">
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:8px">Data Backup</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-secondary" style="flex:1;font-size:13px;padding:9px" onclick="exportData()">⬇️ Export</button>
+      <button class="btn-secondary" style="flex:1;font-size:13px;padding:9px" onclick="document.getElementById('import-file').click()">⬆️ Import</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:7px">Export saves all your data as a JSON file. Import restores from a previous export.</div>
+  </div>`;
+
+  return html;
+}
+
+function goToPantryExpiry() {
+  pantryExpFilter = true;
+  pantryLocFilter = 'All';
+  pantryCatFilter = 'All';
+  switchTab(3);
+}
+
+// ═══════════════════════════════════════════════════
+// TAB 2 — PANTRY
+// ═══════════════════════════════════════════════════
+function renderPantry() {
+  const cats = ['All', 'Protein', 'Fibre', 'Carbs', 'Dry Goods', 'Condiments', 'Sauces', 'Snacks', 'Drinks'];
+  const locs = ['All', 'Fridge', 'Freezer', 'Pantry'];
+
+  let items = [...db.ingredients];
+
+  // Apply search
+  if (pantrySearch.trim()) {
+    const q = pantrySearch.toLowerCase();
+    items = items.filter(i => i.name.toLowerCase().includes(q));
+  }
+
+  // Apply expiry filter
+  if (pantryExpFilter) {
+    items = items.filter(i => {
+      if (!i.expiry) return false;
+      return daysUntilExpiry(i.expiry) <= 14;
+    });
+    items.sort((a, b) => daysUntilExpiry(a.expiry) - daysUntilExpiry(b.expiry));
+  } else {
+    if (pantryLocFilter !== 'All') items = items.filter(i => i.loc === pantryLocFilter);
+    if (pantryCatFilter !== 'All') items = items.filter(i => i.category === pantryCatFilter);
+  }
+
+  let html = `<div class="section" style="padding-top:14px">
+    <input class="search-input" type="search" placeholder="🔍 Search ingredients…" value="${escHtml(pantrySearch)}" oninput="pantrySearch=this.value;confirmDel=null;render()">
+
+    <div class="filter-group">
+      <div class="filter-label">Storage Location</div>
+      <div class="filter-chips">
+        ${locs.map(l => `<button class="chip${!pantryExpFilter && pantryLocFilter===l?' active':''}" onclick="setLocFilter('${l}')">${l}</button>`).join('')}
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <div class="filter-label">Food Category</div>
+      <div class="filter-chips">
+        ${cats.map(c => `<button class="chip${!pantryExpFilter && pantryCatFilter===c?' active':''}" onclick="setCatFilter('${c}')">${c}</button>`).join('')}
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <div class="filter-label">Expiry Status</div>
+      <div class="filter-chips">
+        <button class="chip warning-chip${pantryExpFilter?' active':''}" onclick="toggleExpFilter()">⚠️ Expiring / Expired</button>
+      </div>
+    </div>
+  </div>`;
+
+  html += `<div style="padding:0 14px 6px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:12px;color:var(--text-muted)">${items.length} item${items.length!==1?'s':''}</span>
+    <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openIngModal()">+ Add Item</button>
+  </div>`;
+
+  if (items.length === 0) {
+    html += '<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:14px">No items found</div>';
+  } else {
+    html += '<div class="card" style="margin:0 14px 14px">';
+    items.forEach(item => {
+      html += `<div class="item-row">
+        ${delBtn('ing', item.id)}
+        <div class="item-main">
+          <div class="item-name">${escHtml(item.name)} <span style="font-weight:400">${item.qty} ${(item.unit||'').toLowerCase()}</span></div>
+          <div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;align-items:center">
+            ${catBadge(item.category)}
+            ${expiryBadge(item.expiry)}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          ${locBadge(item.loc)}
+          <button class="btn-icon" onclick="openIngModal(${item.id})">✏️</button>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  return html;
+}
+
+function setLocFilter(l) { pantryLocFilter = l; pantryExpFilter = false; confirmDel = null; render(); }
+function setCatFilter(c) { pantryCatFilter = c; pantryExpFilter = false; confirmDel = null; render(); }
+function toggleExpFilter() { pantryExpFilter = !pantryExpFilter; confirmDel = null; render(); }
+
+// Ingredient Modal
+function openIngModal(id) {
+  const ing = id ? db.ingredients.find(x => x.id === id) : null;
+  const cats = ['Protein','Fibre','Carbs','Dry Goods','Condiments','Sauces','Snacks','Drinks'];
+  const locs = ['Fridge','Freezer','Pantry'];
+  const title = ing ? 'Edit Ingredient' : 'Add Ingredient';
+
+  openModal(`
+    <div class="modal-title">${title}</div>
+    <div class="form-group">
+      <label class="form-label">Name *</label>
+      <input class="form-input" id="ing-name" value="${escHtml(ing?.name||'')}" placeholder="e.g. Pork belly">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Qty</label>
+        <input class="form-input" id="ing-qty" type="number" step="0.01" value="${ing?.qty||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unit</label>
+        <input class="form-input unit-field" id="ing-unit" value="${escHtml(ing?.unit||'')}" placeholder="kg, ml…">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-select" id="ing-cat">
+          ${cats.map(c=>`<option${ing?.category===c?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location</label>
+        <select class="form-select" id="ing-loc">
+          ${locs.map(l=>`<option${ing?.loc===l?' selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Expiry Date (optional)</label>
+      <input class="form-input" id="ing-expiry" type="date" value="${ing?.expiry||''}">
+    </div>
+    <div class="modal-footer">
+      <div></div>
+      <div class="modal-footer-right">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveIng(${id||'null'})">Save</button>
+      </div>
+    </div>
+  `);
+}
+
+function saveIng(id) {
+  const name = document.getElementById('ing-name').value.trim();
+  if (!name) return alert('Name is required');
+  const obj = {
+    id: id || nextId(),
+    name,
+    qty: parseFloat(document.getElementById('ing-qty').value) || 0,
+    unit: document.getElementById('ing-unit').value.trim().toLowerCase(),
+    category: document.getElementById('ing-cat').value,
+    loc: document.getElementById('ing-loc').value,
+    expiry: document.getElementById('ing-expiry').value || '',
+  };
+  if (id) {
+    const idx = db.ingredients.findIndex(x => x.id === id);
+    db.ingredients[idx] = obj;
+  } else {
+    db.ingredients.push(obj);
+  }
+  saveData();
+  closeModal();
+  render();
+}
+
+// ═══════════════════════════════════════════════════
+// TAB 3 — DISHES
+// ═══════════════════════════════════════════════════
+function renderDishes() {
+  const wd = getWeekData(viewWeek);
+  const cats = ['All','Protein','Fibre','Carbs','Full Meal'];
+
+  let dishes = [...db.dishes];
+  if (dishCatFilter !== 'All') dishes = dishes.filter(d => d.category === dishCatFilter);
+
+  const selectedDishes = db.dishes.filter(d => wd.selectedDishes.includes(d.id));
+  const hasSelected = selectedDishes.length > 0;
+
+  // Auto-manage panel state: collapse when nothing selected; expand when dishes first appear,
+  // unless the user has manually set a preference.
+  if (!hasSelected) {
+    thisWeekCollapsed = true;
+    thisWeekUserSet = false;
+  } else if (!thisWeekUserSet) {
+    thisWeekCollapsed = false;
+  }
+
+  const totalServings = selectedDishes.reduce((sum, d) => sum + getDishServings(d.id, viewWeek), 0);
+
+  let html = `<div class="section" style="padding-top:14px">
+    <div class="context-banner">📅 Selecting for: Week of ${fmtDateFull(viewWeek)} · ${hasSelected ? selectedDishes.length + ' dish' + (selectedDishes.length!==1?'es':'') + ' selected' : 'No dishes selected'}</div>
+
+    <div class="filter-group">
+      <div class="filter-chips">
+        ${cats.map(c=>`<button class="chip${dishCatFilter===c?' active':''}" onclick="setDishCatFilter('${c}')">${c}</button>`).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  // This Week Panel
+  html += `<div class="this-week-panel" style="margin:0 14px 12px">
+    <div class="this-week-header${thisWeekCollapsed?' collapsed':''}" onclick="toggleThisWeek()">
+      <span>📋 This Week</span>
+      <span>${thisWeekCollapsed ? '▾' : '▴'}</span>
+    </div>`;
+
+  if (!thisWeekCollapsed) {
+    html += `<div class="this-week-body">`;
+    if (!hasSelected) {
+      html += `<div style="padding:16px 14px;color:var(--text-muted);font-size:13px">Select dishes below to build your plan.</div>`;
+    } else {
+      selectedDishes.forEach(dish => {
+        const sv = getDishServings(dish.id, viewWeek);
+        html += `<div class="serving-row">
+          <span style="font-size:14px;font-weight:600;flex:1;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${dish.id})">${escHtml(dish.name)}</span>
+          ${catBadge(dish.category)}
+          <div class="serving-counter">
+            <button class="counter-btn" onclick="adjServings(${dish.id},-1)">−</button>
+            <input class="counter-val" type="number" min="1" value="${sv}" onchange="setServingsDirect(${dish.id},this.value)" onblur="setServingsDirect(${dish.id},this.value)">
+            <button class="counter-btn" onclick="adjServings(${dish.id},1)">+</button>
+          </div>
+        </div>`;
+      });
+      html += `<div class="total-servings">Total: ${totalServings} servings</div>`;
+    }
+
+    // Replace confirm or generate button
+    if (dishReplaceConfirm) {
+      html += `<div class="replace-confirm" style="margin:8px 12px">
+        <p>This will replace your current cook plan shopping list. Continue?</p>
+        <div class="btn-row">
+          <button class="btn-primary" onclick="doGenerateShopList()">Yes, Replace</button>
+          <button class="btn-secondary" onclick="dishReplaceConfirm=false;render()">Cancel</button>
+        </div>
+      </div>`;
+    } else {
+      html += `<div style="padding:10px 12px">
+        <button class="btn-primary" style="width:100%" ${!hasSelected?'disabled':''} onclick="tryGenerateShopList()">🛒 Generate Shopping List</button>
+      </div>`;
+    }
+
+    html += `</div>`;
+  }
+  html += `</div>`;
+
+  // Dish list
+  html += `<div style="padding:0 14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:12px;color:var(--text-muted)">${dishes.length} dish${dishes.length!==1?'es':''}</span>
+      <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openDishModal()">+ Add Dish</button>
+    </div>
+  </div>`;
+
+  if (dishes.length === 0) {
+    html += '<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:14px">No dishes found</div>';
+  } else {
+    html += '<div class="card" style="margin:0 14px 14px">';
+    dishes.forEach(dish => {
+      const selected = isDishSelected(dish.id, viewWeek);
+      html += `<div class="dish-row${selected?' selected':''}" onclick="openDishDetail(${dish.id})">
+        <div class="dish-check" onclick="toggleDish(${dish.id});event.stopPropagation()" style="cursor:pointer">${selected?'✓':''}</div>
+        <div class="dish-info">
+          <div class="dish-name">${escHtml(dish.name)}</div>
+          <div class="dish-sub">${dish.ingredients.length} ingredient${dish.ingredients.length!==1?'s':''}</div>
+        </div>
+        ${catBadge(dish.category)}
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  return html;
+}
+
+function setDishCatFilter(c) { dishCatFilter = c; confirmDel = null; render(); }
+function toggleThisWeek() {
+  thisWeekCollapsed = !thisWeekCollapsed;
+  thisWeekUserSet = true;
+  render();
+}
+
+function toggleDish(id) {
+  toggleDishSelection(id, viewWeek);
+  render();
+}
+
+function adjServings(dishId, delta) {
+  const cur = getDishServings(dishId, viewWeek);
+  setDishServings(dishId, viewWeek, cur + delta);
+  render();
+}
+
+function setServingsDirect(dishId, val) {
+  const n = parseInt(val);
+  if (!isNaN(n) && n >= 1) setDishServings(dishId, viewWeek, n);
+  render();
+}
+
+function tryGenerateShopList() {
+  if (db.shoppingList.length > 0) {
+    dishReplaceConfirm = true;
+    render();
+  } else {
+    doGenerateShopList();
+  }
+}
+
+function doGenerateShopList() {
+  dishReplaceConfirm = false;
+  const wd = getWeekData(viewWeek);
+  const newList = [];
+
+  wd.selectedDishes.forEach(dishId => {
+    const dish = db.dishes.find(d => d.id === dishId);
+    if (!dish) return;
+    const servings = wd.dishServings[dishId] || 6;
+    const scale = servings / (dish.baseServings || 4);
+
+    dish.ingredients.forEach(ing => {
+      const needed = Math.round(ing.qty * scale * 100) / 100;
+      const pantryMatch = db.ingredients.find(p => p.name.toLowerCase() === ing.name.toLowerCase());
+      newList.push({
+        id: nextId(),
+        name: ing.name,
+        unit: ing.unit,
+        needed,
+        pantryQty: pantryMatch?.qty || null,
+        pantryUnit: pantryMatch?.unit || null,
+        pantryLoc: pantryMatch?.loc || null,
+        toBuyQty: needed,
+        checked: false,
+      });
+    });
+  });
+
+  db.shoppingList = newList;
+  saveData();
+  switchTab(5);
+}
+
+// Dish Detail Modal
+function openDishDetail(id) {
+  const dish = db.dishes.find(d => d.id === id);
+  if (!dish) return;
+  const selected = isDishSelected(id, viewWeek);
+
+  openModal(`
+    <div class="modal-title">${escHtml(dish.name)} ${catBadge(dish.category)}</div>
+    ${dish.notes ? `<div class="detail-section">
+      <div class="detail-label">Cooking Notes</div>
+      <div class="detail-notes">${escHtml(dish.notes).replace(/\n/g,'<br>')}</div>
+    </div>` : ''}
+    <div class="detail-section">
+      <div class="detail-label">Ingredients (${dish.ingredients.length}) · serves ${dish.baseServings || 4}</div>
+      <table class="detail-ing-table">
+        <tbody>
+          ${dish.ingredients.map(i=>`<tr>
+            <td class="dit-name">${escHtml(i.name)}</td>
+            <td class="dit-qty">${i.qty}</td>
+            <td class="dit-unit">${escHtml((i.unit||'').toLowerCase())}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <label class="detail-checkbox">
+      <input type="checkbox" ${selected?'checked':''} onchange="toggleDish(${id});updateDetailCheckbox(this,${id})">
+      Selected for Week of ${fmtDateFull(viewWeek)}
+    </label>
+    <div class="modal-footer">
+      ${delBtn('dish', id)}
+      <div class="modal-footer-right">
+        <button class="btn-secondary" onclick="closeModal()">Close</button>
+        <button class="btn-primary" onclick="closeModal();openDishModal(${id})">✏️ Edit</button>
+      </div>
+    </div>
+  `);
+}
+
+function updateDetailCheckbox(cb, dishId) {
+  // Already toggled by toggleDish, just re-render behind the modal
+  renderContent();
+}
+
+// Dish Add/Edit Modal
+function openDishModal(id) {
+  const dish = id ? db.dishes.find(d => d.id === id) : null;
+  const cats = ['Protein','Fibre','Carbs','Full Meal'];
+  const ings = dish?.ingredients || [{ name:'', qty:'', unit:'' }];
+
+  const ingRows = ings.map((ing, i) => `
+    <div class="ing-row" id="ing-row-${i}">
+      <input class="form-input" placeholder="Ingredient name" value="${escHtml(ing.name||'')}">
+      <input class="form-input qty" type="number" step="0.01" placeholder="Qty" value="${ing.qty||''}">
+      <input class="form-input unit" placeholder="Unit" value="${escHtml(ing.unit||'')}">
+      <button class="remove-ing" onclick="removeDishIng(this)">×</button>
+    </div>`).join('');
+
+  openModal(`
+    <div class="modal-title">${dish ? 'Edit Dish' : 'Add Dish'}</div>
+    <div class="form-group">
+      <label class="form-label">Dish Name *</label>
+      <input class="form-input" id="dish-name" value="${escHtml(dish?.name||'')}" placeholder="e.g. Braised Pork Belly">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-select" id="dish-cat">
+          ${cats.map(c=>`<option${dish?.category===c?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="max-width:90px">
+        <label class="form-label">Serves</label>
+        <input class="form-input" id="dish-serves" type="number" min="1" step="1" value="${dish?.baseServings||4}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Cooking Notes</label>
+      <textarea class="form-textarea" id="dish-notes">${escHtml(dish?.notes||'')}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Ingredients</label>
+      <div id="dish-ings">${ingRows}</div>
+      <button class="btn-secondary" style="margin-top:6px;font-size:12px;padding:5px 12px" onclick="addDishIng()">+ Add Ingredient</button>
+    </div>
+    <div class="modal-footer">
+      <div></div>
+      <div class="modal-footer-right">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveDish(${id||'null'})">Save</button>
+      </div>
+    </div>
+  `);
+}
+
+function addDishIng() {
+  const container = document.getElementById('dish-ings');
+  const i = container.children.length;
+  const row = document.createElement('div');
+  row.className = 'ing-row';
+  row.innerHTML = `
+    <input class="form-input" placeholder="Ingredient name" value="">
+    <input class="form-input qty" type="number" step="0.01" placeholder="Qty" value="">
+    <input class="form-input unit" placeholder="Unit" value="">
+    <button class="remove-ing" onclick="removeDishIng(this)">×</button>`;
+  container.appendChild(row);
+}
+
+function removeDishIng(btn) {
+  const row = btn.closest('.ing-row');
+  if (document.getElementById('dish-ings').children.length > 1) row.remove();
+}
+
+function saveDish(id) {
+  const name = document.getElementById('dish-name').value.trim();
+  if (!name) return alert('Dish name is required');
+  const ingRows = document.querySelectorAll('#dish-ings .ing-row');
+  const ingredients = [];
+  ingRows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const n = inputs[0].value.trim();
+    if (n) ingredients.push({ name: n, qty: parseFloat(inputs[1].value)||0, unit: inputs[2].value.trim().toLowerCase() });
+  });
+  const obj = {
+    id: id || nextId(),
+    name,
+    category: document.getElementById('dish-cat').value,
+    baseServings: parseInt(document.getElementById('dish-serves').value) || 4,
+    notes: document.getElementById('dish-notes').value.trim(),
+    ingredients,
+  };
+  if (id) {
+    const idx = db.dishes.findIndex(x => x.id === id);
+    db.dishes[idx] = obj;
+  } else {
+    db.dishes.push(obj);
+  }
+  saveData();
+  closeModal();
+  render();
+}
+
+// ═══════════════════════════════════════════════════
+// TAB 4 — READY MEALS
+// ═══════════════════════════════════════════════════
+function renderReady() {
+  const meals = db.readyMeals;
+  const proteinCount = meals.filter(m => m.category === 'Protein').length;
+  const fibreCount = meals.filter(m => m.category === 'Fibre').length;
+  const carbsCount = meals.filter(m => m.category === 'Carbs').length;
+  const fullMealCount = meals.filter(m => m.category === 'Full Meal').length;
+
+  let html = `<div class="section" style="padding-top:14px">
+    <div class="stats-bar">
+      <div class="stat-cell"><div class="stat-val" style="color:${proteinCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${proteinCount}</div><div class="stat-lbl">Protein</div></div>
+      <div class="stat-cell"><div class="stat-val" style="color:${fibreCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${fibreCount}</div><div class="stat-lbl">Fibre</div></div>
+      <div class="stat-cell"><div class="stat-val" style="color:${carbsCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${carbsCount}</div><div class="stat-lbl">Carbs</div></div>
+      <div class="stat-cell"><div class="stat-val" style="color:${fullMealCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${fullMealCount}</div><div class="stat-lbl">Full Meal</div></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openReadyModal()">+ Add Meal</button>
+    </div>
+  </div>`;
+
+  if (meals.length === 0) {
+    html += `<div style="padding:50px 20px;text-align:center;color:var(--text-muted)">
+      <div style="font-size:36px;margin-bottom:10px">🍱</div>
+      <div style="font-size:14px">No ready meals yet.<br>Add your cooked batches here.</div>
+    </div>`;
+  } else {
+    html += `<div style="padding:0 14px 14px">`;
+    meals.forEach(m => {
+      const eatByDays = m.eatBy ? daysUntilExpiry(m.eatBy) : null;
+      let eatByStr = m.eatBy ? `Eat by ${fmtDate(m.eatBy)}` : '';
+      let eatByStyle = '';
+      if (eatByDays !== null && eatByDays < 0) { eatByStyle = 'color:#b91c1c;font-weight:600'; eatByStr = `Expired (${fmtDate(m.eatBy)})`; }
+      else if (eatByDays !== null && eatByDays <= 3) { eatByStyle = 'color:#d97706;font-weight:600'; }
+
+      html += `<div class="ready-card">
+        <div class="ready-card-top">
+          ${delBtn('ready', m.id)}
+          <div class="item-main">
+            <div class="item-name">${escHtml(m.name)}</div>
+          </div>
+          <div class="ready-card-badges">
+            ${m.category ? catBadge(m.category) : ''}
+            ${locBadge(m.loc)}
+          </div>
+          <button class="btn-icon" onclick="openReadyModal(${m.id})">✏️</button>
+        </div>
+        <div class="ready-card-body">
+          <div class="serving-counter">
+            <button class="counter-btn" onclick="adjReadyServings(${m.id},-1)">−</button>
+            <span class="counter-val">${m.servings}</span>
+            <button class="counter-btn" onclick="adjReadyServings(${m.id},1)">+</button>
+          </div>
+          <div class="ready-meta">
+            ${(m.cooked || eatByStr) ? `<span${eatByStyle ? ` style="${eatByStyle}"` : ''}>${m.cooked ? `Cooked ${fmtDate(m.cooked)}` : ''}${m.cooked && eatByStr ? ' · ' : ''}${eatByStr}</span>` : ''}
+            ${m.note ? `<br><span style="color:#666">${escHtml(m.note)}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  return html;
+}
+
+function adjReadyServings(id, delta) {
+  const m = db.readyMeals.find(x => x.id === id);
+  if (!m) return;
+  m.servings = Math.max(0, (m.servings || 0) + delta);
+  saveData();
+  render();
+}
+
+function openReadyModal(id) {
+  const m = id ? db.readyMeals.find(x => x.id === id) : null;
+  const locs = ['Fridge', 'Freezer', 'Pantry'];
+  const today = localStr(new Date());
+
+  openModal(`
+    <div class="modal-title">${m ? 'Edit Ready Meal' : 'Add Ready Meal'}</div>
+    <div class="form-group">
+      <label class="form-label">Dish Name *</label>
+      <input class="form-input" id="rm-name" value="${escHtml(m?.name || '')}" placeholder="e.g. Braised Pork Belly">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-select" id="rm-cat">
+          ${['Protein','Fibre','Carbs','Full Meal'].map(c => `<option${m?.category === c ? ' selected' : ''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location</label>
+        <select class="form-select" id="rm-loc">
+          ${locs.map(l => `<option${m?.loc === l ? ' selected' : ''}>${l}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Servings</label>
+        <input class="form-input" id="rm-servings" type="number" min="0" step="1" value="${m?.servings ?? 4}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Date Cooked</label>
+        <input class="form-input" id="rm-cooked" type="date" value="${m?.cooked || today}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Eat By (optional)</label>
+        <input class="form-input" id="rm-eatby" type="date" value="${m?.eatBy || ''}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Note (optional)</label>
+      <input class="form-input" id="rm-note" value="${escHtml(m?.note || '')}" placeholder="e.g. Middle shelf">
+    </div>
+    <div class="modal-footer">
+      <div></div>
+      <div class="modal-footer-right">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveReady(${id || 'null'})">Save</button>
+      </div>
+    </div>
+  `);
+}
+
+function saveReady(id) {
+  const name = document.getElementById('rm-name').value.trim();
+  if (!name) return alert('Dish name is required');
+  const obj = {
+    id: id || nextId(),
+    name,
+    category: document.getElementById('rm-cat').value,
+    servings: parseInt(document.getElementById('rm-servings').value) || 0,
+    loc: document.getElementById('rm-loc').value,
+    cooked: document.getElementById('rm-cooked').value || '',
+    eatBy: document.getElementById('rm-eatby').value || '',
+    note: document.getElementById('rm-note').value.trim(),
+  };
+  if (id) {
+    const idx = db.readyMeals.findIndex(x => x.id === id);
+    db.readyMeals[idx] = obj;
+  } else {
+    db.readyMeals.push(obj);
+  }
+  saveData();
+  closeModal();
+  render();
+}
+
+// ═══════════════════════════════════════════════════
+// TAB 5 — SERVING SIZE GUIDE
+// ═══════════════════════════════════════════════════
+let servingEditMode = false;
+
+function renderServing() {
+  const rows = db.servingGuide;
+
+  let html = `<div class="section" style="padding-top:14px">
+    <div class="serving-guide-header">
+      <span class="serving-guide-title">⚖️ Serving Size Guide</span>
+      <button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="toggleServingEdit()">
+        ${servingEditMode ? '✓ Done' : '✏️ Edit'}
+      </button>
+    </div>
+  </div>`;
+
+  if (rows.length === 0) {
+    html += `<div style="padding:40px 20px;text-align:center;color:var(--text-muted);font-size:13px">No entries yet.</div>`;
+  } else {
+    html += `<div style="padding:0 14px">
+      <div class="card" style="overflow:auto">
+        <table class="guide-table">
+          <thead>
+            <tr>
+              ${servingEditMode ? '<th style="width:38px"></th>' : ''}
+              <th>Dish</th>
+              <th>Meal</th>
+              <th>Qty / Unit</th>
+              <th>Notes</th>
+              ${servingEditMode ? '<th style="width:38px"></th>' : ''}
+            </tr>
+          </thead>
+          <tbody>`;
+
+    rows.forEach(r => {
+      const mealClass = { Lunch: 'meal-lunch', Dinner: 'meal-dinner', Snack: 'meal-snack', Breakfast: 'meal-breakfast' }[r.mealType] || 'meal-lunch';
+      html += `<tr>
+        ${servingEditMode ? `<td>${delBtn('serving', r.id)}</td>` : ''}
+        <td style="font-weight:600">${escHtml(r.dish)}</td>
+        <td><span class="meal-badge ${mealClass}">${escHtml(r.mealType)}</span></td>
+        <td style="max-width:90px;word-break:break-word">${r.qty} ${escHtml((r.unit||'').toLowerCase())}</td>
+        <td style="color:var(--text-muted);font-size:12px">${escHtml(r.notes || '')}</td>
+        ${servingEditMode ? `<td><button class="btn-icon" onclick="openServingModal(${r.id})">✏️</button></td>` : ''}
+      </tr>`;
+    });
+
+    html += `</tbody></table></div></div>`;
+  }
+
+  html += `<div style="padding:10px 14px 14px;display:flex;justify-content:flex-end">
+    <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openServingModal()">+ Add Entry</button>
+  </div>`;
+
+  return html;
+}
+
+function toggleServingEdit() {
+  servingEditMode = !servingEditMode;
+  confirmDel = null;
+  render();
+}
+
+function openServingModal(id) {
+  const r = id ? db.servingGuide.find(x => x.id === id) : null;
+  const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+
+  openModal(`
+    <div class="modal-title">${r ? 'Edit Entry' : 'Add Entry'}</div>
+    <div class="form-group">
+      <label class="form-label">Dish *</label>
+      <input class="form-input" id="sg-dish" value="${escHtml(r?.dish || '')}" placeholder="e.g. Pasta">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Meal Type</label>
+        <select class="form-select" id="sg-meal">
+          ${mealTypes.map(t => `<option${r?.mealType === t ? ' selected' : ''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Qty</label>
+        <input class="form-input" id="sg-qty" type="number" step="0.25" value="${r?.qty ?? ''}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Unit</label>
+      <input class="form-input unit-field" id="sg-unit" value="${escHtml(r?.unit || '')}" placeholder="e.g. g uncooked">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <input class="form-input" id="sg-notes" value="${escHtml(r?.notes || '')}" placeholder="e.g. Cooks to 186g">
+    </div>
+    <div class="modal-footer">
+      <div></div>
+      <div class="modal-footer-right">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveServing(${id || 'null'})">Save</button>
+      </div>
+    </div>
+  `);
+}
+
+function saveServing(id) {
+  const dish = document.getElementById('sg-dish').value.trim();
+  if (!dish) return alert('Dish name is required');
+  const obj = {
+    id: id || nextId(),
+    dish,
+    mealType: document.getElementById('sg-meal').value,
+    qty: parseFloat(document.getElementById('sg-qty').value) || 0,
+    unit: document.getElementById('sg-unit').value.trim().toLowerCase(),
+    notes: document.getElementById('sg-notes').value.trim(),
+  };
+  if (id) {
+    const idx = db.servingGuide.findIndex(x => x.id === id);
+    db.servingGuide[idx] = obj;
+  } else {
+    db.servingGuide.push(obj);
+  }
+  saveData();
+  closeModal();
+  render();
+}
+
+// ═══════════════════════════════════════════════════
+// TAB 6 — SHOPPING LIST
+// ═══════════════════════════════════════════════════
+function renderShop() {
+  const planItems = db.shoppingList || [];
+  const extras = db.shoppingExtras || [];
+  const allItems = [...planItems, ...extras];
+  const total = allItems.length;
+  const ticked = allItems.filter(x => x.checked).length;
+  const pct = total > 0 ? Math.round((ticked / total) * 100) : 0;
+  const hasTicked = ticked > 0;
+
+  let html = `<div class="section" style="padding-top:14px">
+    <div class="shop-header">
+      <span class="shop-title">🛒 Grocery List</span>
+      <div class="shop-header-btns">
+        <button class="btn-secondary" style="padding:6px 10px;font-size:12px" onclick="copyShopList()" title="Copy list">📋 Copy</button>
+        ${hasTicked ? `<button class="btn-secondary" style="padding:6px 10px;font-size:12px;color:#888;border-color:#ccc" onclick="clearTicked()" title="Clear ticked">Clear ✓</button>` : ''}
+        <button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="openShopExtraModal()">+ Item</button>
+      </div>
+    </div>`;
+
+  if (total > 0) {
+    html += `<div class="progress-label">${ticked} of ${total} items ticked off</div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>`;
+  }
+
+  html += `</div><div style="padding:0 14px 14px">`;
+
+  // FROM COOK PLAN section
+  html += `<div class="shop-section-header">FROM COOK PLAN</div>`;
+  if (planItems.length === 0) {
+    html += `<div class="shop-empty">No cook plan items.<br>Generate from the Dishes tab.</div>`;
+  } else {
+    planItems.forEach(item => {
+      const pantryMeta = item.pantryQty !== null
+        ? `Need: ${item.needed} ${escHtml((item.unit||'').toLowerCase())} · Pantry: ${item.pantryQty} ${escHtml((item.pantryUnit||'').toLowerCase())}${item.pantryLoc ? ' · ' + item.pantryLoc : ''}`
+        : `Need: ${item.needed} ${escHtml((item.unit||'').toLowerCase())} · None at home`;
+      html += `<div class="shop-item${item.checked ? ' checked' : ''}">
+        <input type="checkbox" class="shop-check" ${item.checked ? 'checked' : ''} onchange="toggleShopItem('plan',${item.id},this.checked)">
+        <div class="shop-item-body">
+          <div class="shop-item-left">
+            <div class="shop-item-name">${escHtml(item.name)}</div>
+            <div class="shop-item-meta">${pantryMeta}</div>
+          </div>
+          <div class="shop-item-right">
+            <input class="shop-tobuy-input" type="number" step="0.01" value="${item.toBuyQty ?? item.needed}" oninput="updateToBuy(${item.id},this.value)" onchange="updateToBuy(${item.id},this.value)">
+            <input class="shop-tobuy-unit-input" type="text" value="${escHtml((item.toBuyUnit ?? item.unit ?? '').toLowerCase())}" onchange="updateToBuyUnit(${item.id},this.value)">
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+
+  // EXTRAS section
+  html += `<div class="shop-section-header" style="margin-top:10px">EXTRAS</div>`;
+  if (extras.length === 0) {
+    html += `<div class="shop-empty">No extras yet. Tap + Item to add.</div>`;
+  } else {
+    extras.forEach(item => {
+      html += `<div class="shop-item${item.checked ? ' checked' : ''}">
+        ${delBtn('shopX', item.id)}
+        <input type="checkbox" class="shop-check" ${item.checked ? 'checked' : ''} onchange="toggleShopItem('extra',${item.id},this.checked)" style="margin-left:0">
+        <div class="shop-item-body">
+          <div class="shop-item-left">
+            <div class="shop-item-name">${escHtml(item.name)}</div>
+          </div>
+          ${(item.qty != null || item.unit) ? `<div class="shop-item-right">
+            <span class="shop-tobuy-input" style="display:inline-block;text-align:center;padding:5px 8px;font-size:14px;font-weight:700;color:var(--green-dark);background:var(--green-light);border:1.5px solid var(--border);border-radius:6px;min-width:68px">${item.qty != null ? item.qty : '—'}</span>
+            <span class="shop-tobuy-unit">${escHtml((item.unit||'').toLowerCase())}</span>
+          </div>` : ''}
+        </div>
+      </div>`;
+    });
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function toggleShopItem(listType, id, checked) {
+  id = Number(id);
+  if (listType === 'plan') {
+    const item = db.shoppingList.find(x => x.id === id);
+    if (item) item.checked = checked;
+  } else {
+    const item = db.shoppingExtras.find(x => x.id === id);
+    if (item) item.checked = checked;
+  }
+  saveData();
+  const scrollY = window.scrollY || document.documentElement.scrollTop;
+  renderContent();
+  requestAnimationFrame(() => window.scrollTo(0, scrollY));
+}
+
+function updateToBuy(id, val) {
+  id = Number(id);
+  const item = db.shoppingList.find(x => x.id === id);
+  if (item) {
+    item.toBuyQty = parseFloat(val) || 0;
+    saveData();
+  }
+}
+
+function updateToBuyUnit(id, val) {
+  id = Number(id);
+  const item = db.shoppingList.find(x => x.id === id);
+  if (item) {
+    item.toBuyUnit = val.trim().toLowerCase();
+    saveData();
+  }
+}
+
+function clearTicked() {
+  db.shoppingList = db.shoppingList.filter(x => !x.checked);
+  db.shoppingExtras = db.shoppingExtras.filter(x => !x.checked);
+  saveData();
+  render();
+}
+
+function openShopExtraModal() {
+  openModal(`
+    <div class="modal-title">Add Extra Item</div>
+    <div class="form-group">
+      <label class="form-label">Item Name *</label>
+      <input class="form-input" id="sx-name" placeholder="e.g. Garlic">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Qty (optional)</label>
+        <input class="form-input" id="sx-qty" type="number" step="0.01" placeholder="">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unit (optional)</label>
+        <input class="form-input unit-field" id="sx-unit" placeholder="e.g. kg, pcs">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div></div>
+      <div class="modal-footer-right">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveShopExtra()">Add</button>
+      </div>
+    </div>
+  `);
+}
+
+function saveShopExtra() {
+  const name = document.getElementById('sx-name').value.trim();
+  if (!name) return alert('Item name is required');
+  db.shoppingExtras.push({
+    id: nextId(),
+    name,
+    qty: parseFloat(document.getElementById('sx-qty').value) || null,
+    unit: document.getElementById('sx-unit').value.trim().toLowerCase(),
+    checked: false,
+  });
+  saveData();
+  closeModal();
+  render();
+}
+
+function copyShopList() {
+  const planItems = db.shoppingList || [];
+  const extras = db.shoppingExtras || [];
+
+  const unticked = [];
+
+  planItems.forEach(item => {
+    const qty = item.toBuyQty != null ? item.toBuyQty : item.needed;
+    if (!item.checked && qty > 0) unticked.push(`${item.name} ${qty} ${item.toBuyUnit ?? item.unit}`.trim());
+  });
+
+  extras.forEach(item => {
+    if (!item.checked) {
+      const str = item.qty != null ? `${item.name} ${item.qty}${item.unit ? ' ' + item.unit : ''}` : item.name;
+      unticked.push(str);
+    }
+  });
+
+  const text = unticked.length > 0 ? '/add ' + unticked.join(', ') : '(nothing to buy)';
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!')).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try { document.execCommand('copy'); alert('Copied to clipboard!'); }
+  catch { alert('Could not copy. Text:\n\n' + text); }
+  document.body.removeChild(ta);
+}
+
+// ═══════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ═══════════════════════════════════════════════════
+function exportData() {
+  const json = JSON.stringify(db, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = localStr(new Date());
+  a.href = url;
+  a.download = `meal-planner-backup-${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      // Basic validation — check for at least one known key
+      if (!imported.ingredients && !imported.dishes && !imported.weeks) {
+        alert('This does not appear to be a valid Meal Planner backup file.');
+        return;
+      }
+      if (!confirm('This will replace all your current data with the backup. Continue?')) return;
+      db = imported;
+      // Ensure required arrays exist in case backup is from older version
+      ['ingredients','dishes','readyMeals','servingGuide','shoppingList','shoppingExtras'].forEach(k => {
+        if (!db[k]) db[k] = [];
+      });
+      if (!db.weeks) db.weeks = {};
+      saveData();
+      render();
+      alert('Data restored successfully.');
+    } catch {
+      alert('Could not read the file. Make sure it is a valid JSON backup.');
+    }
+  };
+  reader.readAsText(file);
+  // Reset input so the same file can be re-imported if needed
+  event.target.value = '';
+}
+
+// ═══════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+renderContent();
+</script>
+</body>
+</html>
