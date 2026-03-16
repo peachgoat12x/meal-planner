@@ -376,6 +376,7 @@
     align-items: flex-end;
     justify-content: center;
   }
+  .modal-overlay.fullscreen { align-items: flex-start; }
   .modal-overlay.hidden { display: none; }
   .modal {
     background: white;
@@ -387,6 +388,25 @@
     padding: 20px 18px 30px;
     animation: slideUp 0.25s ease;
   }
+  .modal-fullscreen {
+    border-radius: 0;
+    max-height: 100vh;
+    height: 100vh;
+    padding: 0 0 30px;
+  }
+  .recipe-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px 10px;
+    background: white;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-bottom: 1px solid var(--border);
+  }
+  .recipe-topbar-actions { display: flex; gap: 8px; align-items: center; }
+  .recipe-body { padding: 16px 18px 30px; }
   @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   .modal-title { font-size: 19px; font-weight: 700; margin-bottom: 16px; }
   .modal-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
@@ -448,6 +468,9 @@
   .dit-qtyunit { width: 80px; text-align: right; white-space: nowrap; }
   .dit-cat { width: 25%; padding-left: 8px; }
   .unit-field { text-transform: lowercase; }
+  .unit-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; padding: 8px; background: #f9f7f4; border: 1px solid var(--border); border-radius: 8px; }
+  .unit-pill { background: white; border: 1.5px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--text-muted); transition: all 0.15s; white-space: nowrap; }
+  .unit-pill:active { background: var(--green-primary); border-color: var(--green-primary); color: white; }
   .detail-notes { font-size: 15px; color: #444; background: #f9f7f4; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); line-height: 1.7; }
   .recipe-section-header { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; border-top: 1px solid var(--border); margin-top: 10px; margin-bottom: 4px; padding-top: 8px; }
   .detail-checkbox { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--green-light); border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--green-dark); }
@@ -719,6 +742,7 @@ let dishCatFilter = 'All';
 let thisWeekCollapsed = false;
 let thisWeekUserSet = false; // tracks whether user has manually toggled the panel
 let dishReplaceConfirm = false;
+let dishDeleteConfirm = false;
 
 // ═══════════════════════════════════════════════════
 // LOCAL STORAGE
@@ -796,11 +820,35 @@ if (!db.weeks) db.weeks = {};
 const STANDARD_UNITS = ['g','kg','ml','l','tbsp','tsp','cup','pc','btl','pkt','clv','blk'];
 
 function unitComboHtml(id, currentValue) {
+  return `<input class="form-input unit-field" id="${id}" value="${escHtml(currentValue||'')}" placeholder="Unit" autocomplete="off" onfocus="showUnitPills(this.id)" oninput="hideUnitPills()">`;
+}
+
+function showUnitPills(inputId) {
+  hideUnitPills();
+  const input = document.getElementById(inputId);
+  if (!input) return;
   const custom = db.customUnits || [];
   const allUnits = [...STANDARD_UNITS, ...custom];
-  return `<input class="form-input unit-field" id="${id}" value="${escHtml(currentValue||'')}" placeholder="Unit" list="${id}-list" autocomplete="off">
-  <datalist id="${id}-list">${allUnits.map(u=>`<option value="${u}">`).join('')}</datalist>`;
+  const container = document.createElement('div');
+  container.className = 'unit-pills';
+  container.id = 'unit-pills-container';
+  allUnits.forEach(u => {
+    const pill = document.createElement('button');
+    pill.className = 'unit-pill';
+    pill.type = 'button';
+    pill.textContent = u;
+    pill.onclick = () => { input.value = u; hideUnitPills(); };
+    container.appendChild(pill);
+  });
+  input.parentNode.insertBefore(container, input.nextSibling);
 }
+
+function hideUnitPills() {
+  const existing = document.getElementById('unit-pills-container');
+  if (existing) existing.remove();
+}
+
+
 
 
 function saveCustomUnit(val) {
@@ -989,15 +1037,23 @@ function switchTab(idx) {
 // ═══════════════════════════════════════════════════
 // MODAL HELPERS
 // ═══════════════════════════════════════════════════
-function openModal(html) {
-  document.getElementById('modal-content').innerHTML = html;
-  document.getElementById('modal-overlay').classList.remove('hidden');
+function openModal(html, fullscreen) {
+  const overlay = document.getElementById('modal-overlay');
+  const modal = document.getElementById('modal-content');
+  modal.innerHTML = html;
+  modal.classList.toggle('modal-fullscreen', !!fullscreen);
+  overlay.classList.toggle('fullscreen', !!fullscreen);
+  overlay.classList.remove('hidden');
 }
 
 function closeModal(e) {
   if (!e || e.target === document.getElementById('modal-overlay')) {
-    document.getElementById('modal-overlay').classList.add('hidden');
+    const overlay = document.getElementById('modal-overlay');
+    overlay.classList.add('hidden');
+    overlay.classList.remove('fullscreen');
+    document.getElementById('modal-content').classList.remove('modal-fullscreen');
     confirmDel = null;
+    dishDeleteConfirm = false;
   }
 }
 
@@ -1044,10 +1100,10 @@ function renderHome() {
     const orderedCats = [...catOrder, ...Object.keys(grouped).filter(c => !catOrder.includes(c))];
     orderedCats.forEach(cat => {
       if (!grouped[cat]) return;
-      html += `<div class="section-header">${cat}</div>`;
+      html += `<div style="padding:8px 14px 2px">${catBadge(cat)}</div>`;
       grouped[cat].forEach(dish => {
         const servings = getDishServings(dish.id, viewWeek);
-        html += `<div class="item-row">
+        html += `<div class="item-row" style="border-bottom:none">
           <div class="item-main"><div class="item-name">${dish.name}</div></div>
           <div style="font-size:13px;font-weight:600;color:var(--green-primary)">${servings} servings</div>
         </div>`;
@@ -1284,12 +1340,6 @@ function renderDishes() {
 
   let html = `<div class="section" style="padding-top:14px">
     <div class="context-banner">📅 Selecting for: Week of ${fmtDateFull(viewWeek)} · ${hasSelected ? selectedDishes.length + ' dish' + (selectedDishes.length!==1?'es':'') + ' selected' : 'No dishes selected'}</div>
-
-    <div class="filter-group">
-      <div class="filter-chips">
-        ${cats.map(c=>`<button class="chip${dishCatFilter===c?' active':''}" onclick="setDishCatFilter('${c}')">${c}</button>`).join('')}
-      </div>
-    </div>
   </div>`;
 
   // This Week Panel
@@ -1340,6 +1390,9 @@ function renderDishes() {
 
   // Dish list
   html += `<div style="padding:0 14px">
+    <div class="filter-chips" style="margin-bottom:10px">
+      ${cats.map(c=>`<button class="chip${dishCatFilter===c?' active':''}" onclick="setDishCatFilter('${c}')">${c}</button>`).join('')}
+    </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <span style="font-size:12px;color:var(--text-muted)">${dishes.length} dish${dishes.length!==1?'es':''}</span>
       <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openDishModal()">+ Add Dish</button>
@@ -1439,14 +1492,26 @@ function openDishDetail(id) {
   if (!dish) return;
   const selected = isDishSelected(id, viewWeek);
 
-  // Item 5: pre-pass to resolve ingredient categories via pantry lookup
+  // pre-pass to resolve ingredient categories and stock colours
+  const plannedServings = getDishServings(id, viewWeek);
+  const scale = plannedServings / (dish.baseServings || 4);
+
   const resolvedCats = dish.ingredients.map(i => {
     const pantryMatch = db.ingredients.find(p => p.name.toLowerCase() === i.name.toLowerCase());
     return pantryMatch?.category || i.category || null;
   });
   const hasCategory = resolvedCats.some(c => c !== null);
 
-  // Item 3b: single-pass ## section parser
+  const stockColours = dish.ingredients.map(i => {
+    const needed = i.qty * scale;
+    const pantryMatch = db.ingredients.find(p => p.name.toLowerCase() === i.name.toLowerCase());
+    if (!pantryMatch) return '#b91c1c';
+    if (pantryMatch.qty <= 0) return '#b91c1c';
+    if (pantryMatch.qty < needed) return '#d97706';
+    return null;
+  });
+
+  // single-pass ## section parser
   function renderNotes(notes) {
     if (!notes) return '';
     return notes.split('\n').map(line => {
@@ -1459,35 +1524,36 @@ function openDishDetail(id) {
   }
 
   openModal(`
-    <div class="modal-title">${escHtml(dish.name)} ${catBadge(dish.category)}</div>
-    <label class="detail-checkbox" style="margin-bottom:14px">
-      <input type="checkbox" ${selected?'checked':''} onchange="toggleDish(${id});updateDetailCheckbox(this,${id})">
-      Selected for Week of ${fmtDateFull(viewWeek)}
-    </label>
-    ${dish.notes ? `<div class="detail-section">
-      <div class="detail-label">Recipe</div>
-      <div class="detail-notes">${renderNotes(dish.notes)}</div>
-    </div>` : ''}
-    <div class="detail-section">
-      <div class="detail-label">Ingredients (${dish.ingredients.length}) · serves ${dish.baseServings || 4}</div>
-      <table class="detail-ing-table">
-        <tbody>
-          ${dish.ingredients.map((i, idx) => `<tr>
-            <td class="dit-name">${escHtml(i.name)}</td>
-            <td class="dit-qtyunit">${i.qty} <span style="color:var(--text-muted)">${escHtml((i.unit||'').toLowerCase())}</span></td>
-            ${hasCategory ? `<td class="dit-cat">${resolvedCats[idx] ? catBadge(resolvedCats[idx]) : ''}</td>` : ''}
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-    <div class="modal-footer">
-      ${delBtn('dish', id)}
-      <div class="modal-footer-right">
-        <button class="btn-secondary" onclick="closeModal()">Close</button>
-        <button class="btn-primary" onclick="closeModal();openDishModal(${id})">✏️ Edit</button>
+    <div class="recipe-topbar">
+      <div class="modal-title" style="margin-bottom:0">${escHtml(dish.name)} ${catBadge(dish.category)}</div>
+      <div class="recipe-topbar-actions">
+        <button class="btn-icon" onclick="openDishModal(${id})" title="Edit">✏️</button>
+        <button class="btn-icon" onclick="closeModal()" title="Close" style="font-size:18px;font-weight:700;color:var(--text-muted)">✕</button>
       </div>
     </div>
-  `);
+    <div class="recipe-body">
+      <label class="detail-checkbox" style="margin-bottom:14px">
+        <input type="checkbox" ${selected?'checked':''} onchange="toggleDish(${id});updateDetailCheckbox(this,${id})">
+        Selected for Week of ${fmtDateFull(viewWeek)}
+      </label>
+      ${dish.notes ? `<div class="detail-section">
+        <div class="detail-label">Recipe</div>
+        <div class="detail-notes">${renderNotes(dish.notes)}</div>
+      </div>` : ''}
+      <div class="detail-section">
+        <div class="detail-label">Ingredients (${dish.ingredients.length}) · serves ${dish.baseServings || 4} · planning ${plannedServings}</div>
+        <table class="detail-ing-table">
+          <tbody>
+            ${dish.ingredients.map((i, idx) => `<tr>
+              <td class="dit-name"${stockColours[idx] ? ` style="color:${stockColours[idx]}"` : ''}>${escHtml(i.name)}</td>
+              <td class="dit-qtyunit">${i.qty} <span style="color:var(--text-muted)">${escHtml((i.unit||'').toLowerCase())}</span></td>
+              ${hasCategory ? `<td class="dit-cat">${resolvedCats[idx] ? catBadge(resolvedCats[idx]) : ''}</td>` : ''}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `, true);
 }
 
 function updateDetailCheckbox(cb, dishId) {
@@ -1497,6 +1563,7 @@ function updateDetailCheckbox(cb, dishId) {
 
 // Dish Add/Edit Modal
 function openDishModal(id) {
+  dishDeleteConfirm = false;
   const dish = id ? db.dishes.find(d => d.id === id) : null;
   const cats = ['Protein','Fibre','Carbs','Full Meal'];
   const ings = dish?.ingredients || [{ name:'', qty:'', unit:'' }];
@@ -1509,41 +1576,58 @@ function openDishModal(id) {
       <button class="remove-ing" onclick="removeDishIng(this)">×</button>
     </div>`).join('');
 
+  const cancelAction = id ? `openDishDetail(${id})` : `closeModal()`;
+  const topTitle = dish ? escHtml(dish.name) : 'Add Dish';
+
+  const deleteFooter = dishDeleteConfirm
+    ? `<div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;color:var(--red)">Delete dish?</span>
+        <button class="btn-danger" onclick="confirmDeleteDish(${id})">✓ Yes</button>
+        <button class="btn-cancel" onclick="dishDeleteConfirm=false;openDishModal(${id})">✗ No</button>
+       </div>`
+    : `<button class="btn-icon" onclick="dishDeleteConfirm=true;openDishModal(${id})" title="Delete">🗑️</button>`;
+
   openModal(`
-    <div class="modal-title">${dish ? 'Edit Dish' : 'Add Dish'}</div>
-    <div class="form-group">
-      <label class="form-label">Dish Name *</label>
-      <input class="form-input" id="dish-name" value="${escHtml(dish?.name||'')}" placeholder="e.g. Braised Pork Belly">
+    <div class="recipe-topbar">
+      <div class="modal-title" style="margin-bottom:0">${topTitle}</div>
+      <div class="recipe-topbar-actions">
+        <button class="btn-icon" onclick="${cancelAction}" title="Cancel" style="font-size:18px;font-weight:700;color:var(--text-muted)">✕</button>
+      </div>
     </div>
-    <div class="form-row">
+    <div class="recipe-body">
       <div class="form-group">
-        <label class="form-label">Category</label>
-        <select class="form-select" id="dish-cat">
-          ${cats.map(c=>`<option${dish?.category===c?' selected':''}>${c}</option>`).join('')}
-        </select>
+        <label class="form-label">Dish Name *</label>
+        <input class="form-input" id="dish-name" value="${escHtml(dish?.name||'')}" placeholder="e.g. Braised Pork Belly">
       </div>
-      <div class="form-group" style="max-width:90px">
-        <label class="form-label">Serves</label>
-        <input class="form-input" id="dish-serves" type="number" min="1" step="1" value="${dish?.baseServings||4}">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select class="form-select" id="dish-cat">
+            ${cats.map(c=>`<option${dish?.category===c?' selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group" style="max-width:90px">
+          <label class="form-label">Serves</label>
+          <input class="form-input" id="dish-serves" type="number" min="1" step="1" value="${dish?.baseServings||4}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Recipe</label>
+        <textarea class="form-textarea" id="dish-notes" placeholder="## Prep&#10;Marinate chicken for 30 mins...&#10;&#10;## Cook&#10;Fry on high heat...">${escHtml(dish?.notes||'')}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ingredients</label>
+        <div id="dish-ings">${ingRows}</div>
+        <button class="btn-secondary" style="margin-top:6px;font-size:12px;padding:5px 12px" onclick="addDishIng()">+ Add Ingredient</button>
+      </div>
+      <div class="modal-footer">
+        <div>${id ? deleteFooter : ''}</div>
+        <div class="modal-footer-right">
+          <button class="btn-primary" onclick="saveDish(${id||'null'})">Save</button>
+        </div>
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Recipe</label>
-      <textarea class="form-textarea" id="dish-notes" placeholder="## Prep&#10;Marinate chicken for 30 mins...&#10;&#10;## Cook&#10;Fry on high heat...">${escHtml(dish?.notes||'')}</textarea>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Ingredients</label>
-      <div id="dish-ings">${ingRows}</div>
-      <button class="btn-secondary" style="margin-top:6px;font-size:12px;padding:5px 12px" onclick="addDishIng()">+ Add Ingredient</button>
-    </div>
-    <div class="modal-footer">
-      <div></div>
-      <div class="modal-footer-right">
-        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button class="btn-primary" onclick="saveDish(${id||'null'})">Save</button>
-      </div>
-    </div>
-  `);
+  `, true);
 }
 
 function addDishIng() {
@@ -1562,6 +1646,15 @@ function addDishIng() {
 function removeDishIng(btn) {
   const row = btn.closest('.ing-row');
   if (document.getElementById('dish-ings').children.length > 1) row.remove();
+}
+
+function confirmDeleteDish(id) {
+  dishDeleteConfirm = false;
+  id = Number(id);
+  db.dishes = db.dishes.filter(x => x.id !== id);
+  saveData();
+  closeModal();
+  render();
 }
 
 function saveDish(id) {
@@ -1593,8 +1686,13 @@ function saveDish(id) {
     db.dishes.push(obj);
   }
   saveData();
-  closeModal();
-  render();
+  if (id) {
+    render();
+    openDishDetail(id);
+  } else {
+    closeModal();
+    render();
+  }
 }
 
 // ═══════════════════════════════════════════════════
