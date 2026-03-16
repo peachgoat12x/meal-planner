@@ -1568,7 +1568,6 @@ function updateDetailCheckbox(cb, dishId) {
 
 // Dish Add/Edit Modal
 function openDishModal(id) {
-  dishDeleteConfirm = false;
   const dish = id ? db.dishes.find(d => d.id === id) : null;
   const cats = ['Protein','Fibre','Carbs','Full Meal'];
   const ings = dish?.ingredients || [{ name:'', qty:'', unit:'' }];
@@ -1727,7 +1726,8 @@ function renderReady() {
       <div class="stat-cell"><div class="stat-val" style="color:${carbsCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${carbsCount}</div><div class="stat-lbl">Carbs</div></div>
       <div class="stat-cell"><div class="stat-val" style="color:${fullMealCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${fullMealCount}</div><div class="stat-lbl">Full Meal</div></div>
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span style="font-size:12px;color:var(--text-muted)">Week of ${fmtDateFull(viewWeek)}</span>
       <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openReadyModal()">+ Add Meal</button>
     </div>
   </div>`;
@@ -1784,16 +1784,33 @@ function adjReadyServings(id, delta) {
   render();
 }
 
+function prefillReadyServings(name) {
+  const wd = getWeekData(viewWeek);
+  const dish = db.dishes.find(d => d.name.toLowerCase() === name.toLowerCase() && wd.selectedDishes.includes(d.id));
+  if (dish) {
+    const servingsInput = document.getElementById('rm-servings');
+    if (servingsInput) servingsInput.value = getDishServings(dish.id, viewWeek);
+  }
+}
+
 function openReadyModal(id) {
   const m = id ? db.readyMeals.find(x => x.id === id) : null;
   const locs = ['Fridge', 'Freezer', 'Pantry'];
   const today = localStr(new Date());
 
+  // Build dish name suggestions from current week's selected dishes
+  const wd = getWeekData(viewWeek);
+  const weekDishNames = db.dishes
+    .filter(d => wd.selectedDishes.includes(d.id))
+    .map(d => d.name);
+
   openModal(`
     <div class="modal-title">${m ? 'Edit Ready Meal' : 'Add Ready Meal'}</div>
     <div class="form-group">
       <label class="form-label">Dish Name *</label>
-      <input class="form-input" id="rm-name" value="${escHtml(m?.name || '')}" placeholder="e.g. Braised Pork Belly">
+      <input class="form-input" id="rm-name" value="${escHtml(m?.name || '')}" placeholder="e.g. Braised Pork Belly"
+        list="rm-name-list" autocomplete="off" onchange="prefillReadyServings(this.value)">
+      <datalist id="rm-name-list">${weekDishNames.map(n => `<option value="${escHtml(n)}">`).join('')}</datalist>
     </div>
     <div class="form-row">
       <div class="form-group">
