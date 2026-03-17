@@ -749,6 +749,13 @@ function addWks(dateStr, n) {
   return localStr(dt);
 }
 
+function addDays(dateStr, n) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + n);
+  return localStr(dt);
+}
+
 function getThisMonday() {
   const t = new Date();
   t.setHours(0, 0, 0, 0);
@@ -828,8 +835,8 @@ const SAMPLE_DATA = {
     { id: 4, name: 'Steamed Egg Tofu', category: 'Fibre', notes: 'Steam 8 min, spring onion oil.', ingredients: [{ name: 'Egg tofu', qty: 2, unit: 'pieces' }] },
   ],
   readyMeals: [
-    { id: 9, name: 'Braised Pork Belly', servings: 8, cooked: '2026-03-10', loc: 'Freezer', eatBy: '2026-04-01', note: 'Middle shelf' },
-    { id: 10, name: 'Stir-fried Broccoli', servings: 4, cooked: '2026-03-10', loc: 'Fridge', eatBy: '2026-03-20', note: '' },
+    { id: 9, name: 'Braised Pork Belly', servings: 8, cooked: '2026-03-10', loc: 'Freezer', eatBy: '2026-04-01', note: 'Middle shelf', week: thisMonday },
+    { id: 10, name: 'Stir-fried Broccoli', servings: 4, cooked: '2026-03-10', loc: 'Fridge', eatBy: '2026-03-20', note: '', week: thisMonday },
   ],
   weeks: {},
   servingGuide: [
@@ -863,6 +870,11 @@ if (!db.servingGuide || db.servingGuide.length === 0) {
   if (!db[k]) db[k] = [];
 });
 if (!db.weeks) db.weeks = {};
+// Wipe ready meals if none have a week field (sample data from before week field was added)
+if (db.readyMeals.length > 0 && !db.readyMeals.some(m => m.week)) {
+  db.readyMeals = [];
+  saveData();
+}
 
 // ═══════════════════════════════════════════════════
 // UNITS
@@ -1160,9 +1172,8 @@ function renderHome() {
     <div class="week-title">Week of ${fmtDateFull(viewWeek)}</div>
   </div>`;
 
-  // Ready meals summary — filter to viewed week by cooked date
-  const weekEnd = addWks(viewWeek, 1);
-  const weekMeals = db.readyMeals.filter(m => m.cooked && m.cooked >= viewWeek && m.cooked < weekEnd);
+  // Ready meals summary — filter by assigned week
+  const weekMeals = db.readyMeals.filter(m => m.week === viewWeek);
 
   if (weekMeals.length === 0) {
     html += `<div class="card"><div style="padding:20px 14px;color:var(--text-muted);font-size:13px;text-align:center">No ready meals this week.<br>Head to the Ready tab to log cooked batches.</div></div>`;
@@ -1763,8 +1774,7 @@ function saveDish(id) {
 // TAB 4 — READY MEALS
 // ═══════════════════════════════════════════════════
 function renderReady() {
-  const weekEnd = addWks(viewWeek, 1);
-  const meals = db.readyMeals.filter(m => m.cooked && m.cooked >= viewWeek && m.cooked < weekEnd);
+  const meals = db.readyMeals.filter(m => m.week === viewWeek);
   const proteinCount = meals.filter(m => m.category === 'Protein').length;
   const fibreCount = meals.filter(m => m.category === 'Fibre').length;
   const carbsCount = meals.filter(m => m.category === 'Carbs').length;
@@ -1921,11 +1931,11 @@ function openReadyModal(id) {
     .filter(d => wd.selectedDishes.includes(d.id))
     .map(d => d.name);
 
-  // Build carried suggestions from prior week's ready meals
-  const priorMonday = addWks(viewWeek, -1);
-  const priorSunday = addWks(viewWeek, 0);
+  // Build carried suggestions from prior week (Sat–Fri window)
+  const priorWkStart = addDays(viewWeek, -9); // Saturday before prior Monday
+  const priorWkEnd = addDays(viewWeek, -2);   // Friday before current week Saturday (exclusive = current Sat)
   const carriedNames = db.readyMeals
-    .filter(r => r.carried && r.cooked >= priorMonday && r.cooked < priorSunday)
+    .filter(r => r.carried && r.cooked >= priorWkStart && r.cooked < priorWkEnd)
     .map(r => r.name);
 
   // Build rmSuggestions: carried first (deduped against cook plan), then remaining cook plan
@@ -1957,6 +1967,12 @@ function openReadyModal(id) {
       </div>
     </div>
     <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Week</label>
+        <select class="form-select" id="rm-week">
+          ${[-1,0,1,2].map(n => { const w = addWks(viewWeek, n); const label = n === -1 ? 'Prior week' : n === 0 ? 'This week' : n === 1 ? 'Next week' : '2 weeks ahead'; return `<option value="${w}"${(m?.week||viewWeek)===w?' selected':''}>${label} (${fmtDate(w)})</option>`; }).join('')}
+        </select>
+      </div>
       <div class="form-group">
         <label class="form-label">Servings</label>
         <input class="form-input" id="rm-servings" type="number" min="0" step="1" value="${m?.servings ?? 4}">
@@ -2013,6 +2029,7 @@ function saveReady(id) {
     dishId: matchedDish ? matchedDish.id : null,
     isLeftover: id ? (db.readyMeals.find(x => x.id === id)?.isLeftover || false) : rmIsLeftover,
     carried: id ? (db.readyMeals.find(x => x.id === id)?.carried || false) : false,
+    week: document.getElementById('rm-week').value,
     category: document.getElementById('rm-cat').value,
     servings: parseInt(document.getElementById('rm-servings').value) || 0,
     loc: document.getElementById('rm-loc').value,
