@@ -791,15 +791,17 @@ let confirmDel = null;
 let pantrySearch = '';
 let pantryLocFilter = 'All';
 let pantryCatFilter = 'All';
-let pantryExpFilter = false;
+let pantryExpFilter = false;       // true when expiry filter chip is active
 let dishCatFilter = 'All';
-let thisWeekCollapsed = false;
-let thisWeekUserSet = false; // tracks whether user has manually toggled the panel
-let dishReplaceConfirm = false;
-let dishDeleteConfirm = false;
-let rmIsLeftover = false;
-let rmSuggestions = [];
-let rmSelecting = false;
+let thisWeekCollapsed = false;     // whether the This Week panel in Dishes tab is collapsed
+let thisWeekUserSet = false;       // true if user has manually toggled the panel (prevents auto-collapse)
+let dishReplaceConfirm = false;    // true when user has been asked to confirm replacing shop list
+let dishDeleteConfirm = false;     // true when dish delete confirm UI is showing in the edit modal
+
+// Ready Meals modal state — reset on openReadyModal, switchTab, and closeModal
+let rmIsLeftover = false;          // true when the current Add modal entry is being added from a carried suggestion
+let rmSuggestions = [];            // array of {name, isCarried} built at modal open time
+let rmSelecting = false;           // flag to suppress oninput firing after selectRmSuggestion sets input.value
 
 // ═══════════════════════════════════════════════════
 // LOCAL STORAGE
@@ -820,6 +822,21 @@ function saveData() {
 // ═══════════════════════════════════════════════════
 // DEFAULT / SAMPLE DATA
 // ═══════════════════════════════════════════════════
+// DATA MODEL — field reference for each record type:
+//
+// ingredients:  { id, name, category, qty, unit, loc, expiry }
+// dishes:       { id, name, category, baseServings, notes, ingredients:[{name,qty,unit}] }
+// readyMeals:   { id, name, dishId, week, isLeftover, carried, category, servings,
+//                 loc, cooked, eatBy, note }
+//                 dishId     — links to dishes.id (null if no match or custom name)
+//                 week       — Monday string of the week this meal is assigned to (drives visibility)
+//                 isLeftover — true if this meal was added from a carried suggestion
+//                 carried    — true if user has flagged this meal as having leftovers for next week
+// weeks:        { [mondayStr]: { selectedDishes:[id,...], dishServings:{id:n,...} } }
+// servingGuide: { id, dish, mealType, qty, unit, notes }
+// shoppingList: { id, name, unit, needed, pantryQty, pantryUnit, pantryLoc, toBuyQty, toBuyUnit, checked }
+// shoppingExtras: { id, name, qty, unit, checked }
+// customUnits:  [string, ...]  — user-defined units beyond STANDARD_UNITS
 const SAMPLE_DATA = {
   nextId: 11,
   ingredients: [
@@ -881,6 +898,9 @@ if (db.readyMeals.length > 0 && !db.readyMeals.some(m => m.week)) {
 // ═══════════════════════════════════════════════════
 // UNITS
 // ═══════════════════════════════════════════════════
+// Unit fields use a custom pill picker (not a native select) so users can type free-form units.
+// On focus, standard + custom unit pills appear below the input for quick selection.
+// Custom units are saved to db.customUnits when a non-standard value is entered.
 const STANDARD_UNITS = ['g','kg','ml','l','tbsp','tsp','cup','pc','btl','pkt','clv','blk'];
 
 function unitComboHtml(id, currentValue) {
@@ -933,6 +953,9 @@ function nextId() {
 // ═══════════════════════════════════════════════════
 // WEEK DATA HELPERS
 // ═══════════════════════════════════════════════════
+// Cook plan data (selected dishes + serving counts) is stored per-week in db.weeks,
+// keyed by the Monday date string (e.g. "2026-03-16").
+// Ready meals use a separate week field on each record — see DATA MODEL above.
 function getWeekData(wk) {
   if (!db.weeks[wk]) db.weeks[wk] = { selectedDishes: [], dishServings: {} };
   return db.weeks[wk];
@@ -983,6 +1006,9 @@ function catBadge(cat) {
   return `<span class="badge ${map[cat] || 'badge-grey'}">${cat}</span>`;
 }
 
+// Fallback name-based dish lookup used where dishId is absent (e.g. older records).
+// Note: if a dish is renamed in the library, this lookup will fail for old ready meal records.
+// New records use dishId directly and don't rely on this function.
 function dishIdByName(name) {
   const dish = db.dishes.find(d => d.name.toLowerCase() === name.toLowerCase());
   return dish ? dish.id : null;
@@ -1001,6 +1027,12 @@ function expiryBadge(expiry) {
 // ═══════════════════════════════════════════════════
 // DELETE PATTERN
 // ═══════════════════════════════════════════════════
+// Deletion uses an inline two-step confirm pattern to avoid accidental deletes.
+// Tapping 🗑️ sets confirmDel = {scope, id} and re-renders, showing ✓/✗ buttons in place.
+// Tapping ✓ calls doDel which performs the delete. Tapping ✗ clears confirmDel and re-renders.
+// scope values: 'ing' (pantry), 'dish', 'ready', 'serving', 'shopX' (shopping extras)
+// Dish deletion uses a separate dishDeleteConfirm flag because it lives inside a fullscreen modal
+// where render() does not update modal content — openDishModal() is called directly instead.
 function delBtn(scope, id) {
   if (confirmDel && confirmDel.scope === scope && confirmDel.id === id) {
     return `<div class="del-confirm">
@@ -1036,6 +1068,14 @@ function doDel(scope, id) {
 // ═══════════════════════════════════════════════════
 // CARRIED / LEFTOVER HELPERS
 // ═══════════════════════════════════════════════════
+// Two related but distinct flags on ready meal records:
+//   carried    — set by the user via the 🔁 toggle. Means "this batch has leftovers I want
+//                to carry to next week." Makes the meal appear in the Add Ready Meal dropdown
+//                for the following week, with a * prefix.
+//   isLeftover — set automatically when a carried suggestion is selected in Add Ready Meal.
+//                Means "this meal originated as a leftover from the prior week."
+//                Shown with * prefix in the ready meals list and modal title badge.
+// sortReadyMeals returns a copy sorted with isLeftover meals first — never mutates db.
 function carriedToggleHtml(id, carried) {
   return `<button class="carried-toggle${carried ? ' active' : ''}" onclick="toggleCarried(${id})" title="Mark as leftover for next week">${carried ? '🔁 Carried' : '🔁'}</button>`;
 }
@@ -1056,6 +1096,11 @@ function toggleCarried(id) {
 // ═══════════════════════════════════════════════════
 // SCROLL PRESERVATION
 // ═══════════════════════════════════════════════════
+// render() preserves scroll position across re-renders (e.g. toggling a checkbox mid-list).
+// renderContent() does a raw re-render with no scroll preservation — used for tab switches
+// and navigation where scrolling to top is correct behaviour.
+// IMPORTANT: render() only updates #content (the page body). It does NOT update modal content.
+// Never call render() expecting it to refresh an open modal — use openModal() directly instead.
 function render() {
   const scrollY = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop;
   renderContent();
@@ -1117,6 +1162,8 @@ function switchTab(idx) {
   confirmDel = null;
   dishReplaceConfirm = false;
   servingEditMode = false;
+  rmIsLeftover = false;
+  rmSuggestions = [];
   if (idx !== 1) thisWeekUserSet = false;
   window.scrollTo(0, 0);
   document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
@@ -1126,6 +1173,11 @@ function switchTab(idx) {
 // ═══════════════════════════════════════════════════
 // MODAL HELPERS
 // ═══════════════════════════════════════════════════
+// openModal(html) — bottom sheet modal (max 80vh), used for add/edit forms.
+// openModal(html, true) — fullscreen modal, used for dish detail and dish edit views.
+// closeModal(e) — the event argument guard means it only closes when called with no argument
+// (e.g. Cancel button) or when the overlay backdrop itself is tapped. Tapping inside the
+// modal content does not close it (stopPropagation is set on #modal-content).
 function openModal(html, fullscreen) {
   const overlay = document.getElementById('modal-overlay');
   const modal = document.getElementById('modal-content');
@@ -1143,6 +1195,7 @@ function closeModal(e) {
     document.getElementById('modal-content').classList.remove('modal-fullscreen');
     confirmDel = null;
     dishDeleteConfirm = false;
+    rmIsLeftover = false;
     if (rmOutsideClickListener) {
       document.removeEventListener('click', rmOutsideClickListener);
       document.removeEventListener('touchstart', rmOutsideClickListener);
@@ -1522,6 +1575,9 @@ function tryGenerateShopList() {
 }
 
 function doGenerateShopList() {
+  // Scales each dish's ingredients by (planned servings / dish.baseServings).
+  // Matches ingredient names against pantry for stock context (qty, unit, location).
+  // Generates a flat shoppingList array — one entry per ingredient across all selected dishes.
   dishReplaceConfirm = false;
   const wd = getWeekData(viewWeek);
   const newList = [];
@@ -1881,9 +1937,25 @@ function handleRmNameChange(input) {
       eatByDate.setDate(eatByDate.getDate() + 3);
       eatByInput.value = localStr(eatByDate);
     }
+    // Preserve original cook date from the carried meal
+    const strippedName = input.value.toLowerCase();
+    const originalMeal = db.readyMeals.find(r =>
+      r.name.toLowerCase() === strippedName && r.week === addWks(viewWeek, -1)
+    );
+    const cookedInput = document.getElementById('rm-cooked');
+    if (cookedInput && originalMeal?.cooked) cookedInput.value = originalMeal.cooked;
     rmIsLeftover = true;
+    // Update modal title to show leftover badge dynamically
+    const titleEl = document.getElementById('rm-modal-title');
+    if (titleEl && !titleEl.querySelector('.badge-orange')) {
+      titleEl.insertAdjacentHTML('beforeend', '<span class="badge badge-orange" style="margin-left:8px;vertical-align:middle">* leftover</span>');
+    }
   } else {
     rmIsLeftover = false;
+    // Remove leftover badge if user switches to a non-carried dish
+    const titleEl = document.getElementById('rm-modal-title');
+    const badge = titleEl?.querySelector('.badge-orange');
+    if (badge) badge.remove();
     prefillReadyServings(val);
   }
 }
@@ -1930,6 +2002,22 @@ function hideRmSuggestions() {
 
 let rmOutsideClickListener = null;
 
+// ── READY MEALS MODAL ──────────────────────────────
+// The Dish Name field uses a custom dropdown (not native datalist) for full control
+// over ordering and styling. Suggestion sources:
+//   1. Carried meals from prior week (meal.week === viewWeek - 1 week, carried === true)
+//      — shown first with * prefix and amber styling
+//   2. Cook plan dishes for the viewed week (db.weeks[viewWeek].selectedDishes)
+//      — shown after carried, deduped so a carried dish doesn't appear twice
+// On selecting a carried suggestion, handleRmNameChange:
+//   — strips * from the name
+//   — sets servings to 1
+//   — sets eat-by to viewWeek + 3 days
+//   — copies cook date from the original carried meal
+//   — sets rmIsLeftover = true (saved to record on saveReady)
+//   — injects the * leftover badge into the modal title
+// rmSelecting flag suppresses oninput re-filtering after selectRmSuggestion sets input.value.
+// Outside-tap listener (click + touchstart) dismisses the dropdown; cleaned up on closeModal.
 function openReadyModal(id) {
   rmIsLeftover = false;
   const m = id ? db.readyMeals.find(x => x.id === id) : null;
@@ -1955,7 +2043,7 @@ function openReadyModal(id) {
   ];
 
   openModal(`
-    <div class="modal-title">${m ? 'Edit Ready Meal' : 'Add Ready Meal'}</div>
+    <div class="modal-title" id="rm-modal-title">${m ? 'Edit Ready Meal' : 'Add Ready Meal'}${m?.isLeftover ? '<span class="badge badge-orange" style="margin-left:8px;vertical-align:middle">* leftover</span>' : ''}</div>
     <div class="form-group">
       <label class="form-label">Dish Name *</label>
       <input class="form-input" id="rm-name" value="${escHtml(m?.name || '')}" placeholder="e.g. Braised Pork Belly"
@@ -2420,10 +2508,14 @@ function importData(event) {
       if (!confirm('This will replace all your current data with the backup. Continue?')) return;
       db = imported;
       // Ensure required arrays exist in case backup is from older version
-      ['ingredients','dishes','readyMeals','servingGuide','shoppingList','shoppingExtras'].forEach(k => {
+      ['ingredients','dishes','readyMeals','servingGuide','shoppingList','shoppingExtras','customUnits'].forEach(k => {
         if (!db[k]) db[k] = [];
       });
       if (!db.weeks) db.weeks = {};
+      // Wipe ready meals if none have a week field (backup pre-dates week field)
+      if (db.readyMeals.length > 0 && !db.readyMeals.some(m => m.week)) {
+        db.readyMeals = [];
+      }
       saveData();
       render();
       alert('Data restored successfully.');
