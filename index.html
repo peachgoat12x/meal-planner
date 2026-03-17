@@ -691,7 +691,10 @@
     font-weight: 600;
   }
 
-  /* ── CARRY BTN (SVG icon) ── */
+  /* ── CARRY BTN (SVG tupperware icon) ──
+     Grey when not carried, amber when carried.
+     Used in renderReady and renderHome card bottom row.
+     Replaces the old pill-style .carried-toggle button. ── */
   .carry-btn {
     background: none;
     border: none;
@@ -1930,6 +1933,10 @@ function renderReady() {
   return html;
 }
 
+// Read-only detail view for a ready meal. Opens as a bottom sheet modal.
+// Shows all metadata in a clean label/value table layout.
+// Edit button replaces modal content with openReadyModal(id).
+// ✕ closes the modal entirely.
 function openReadyDetail(id) {
   const m = db.readyMeals.find(x => x.id === id);
   if (!m) return;
@@ -2219,9 +2226,12 @@ function saveReady(id) {
 }
 
 // ═══════════════════════════════════════════════════
-// PORTIONS GUIDE — modal-based, accessible from header ⚖️ button on all tabs
-// Edit buttons always visible per row — no edit mode toggle needed.
-// Delete is via inline confirm inside the edit form, using servingDeleteId flag.
+// PORTIONS GUIDE
+// ═══════════════════════════════════════════════════
+// Accessible via ⚖️ button in the header on all tabs — not a tab of its own.
+// Edit buttons always visible per row, no edit mode toggle needed.
+// Delete uses inline named-function confirm pattern inside the edit form (servingDeleteId flag),
+// mirroring the dish delete pattern. ✕ in edit form title navigates back to the list.
 // ═══════════════════════════════════════════════════
 
 function renderServingModal() {
