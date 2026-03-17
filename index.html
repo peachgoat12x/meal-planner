@@ -884,7 +884,7 @@ function saveData() {
 // shoppingExtras: { id, name, qty, unit, checked }
 // customUnits:  [string, ...]  — user-defined units beyond STANDARD_UNITS
 const SAMPLE_DATA = {
-  nextId: 11,
+  nextId: 12,
   ingredients: [
     { id: 1, name: 'Pork belly', category: 'Protein', qty: 1.5, unit: 'kg', loc: 'Freezer', expiry: '2026-09-01' },
     { id: 2, name: 'Broccoli', category: 'Fibre', qty: 2, unit: 'pieces', loc: 'Fridge', expiry: '2026-03-18' },
@@ -903,13 +903,17 @@ const SAMPLE_DATA = {
   ],
   weeks: {},
   servingGuide: [
-    { id: 1, dish: 'Pasta', mealType: 'Lunch', qty: 75, unit: 'g uncooked', notes: 'Cooks to 186g' },
-    { id: 2, dish: 'Pasta', mealType: 'Dinner', qty: 50, unit: 'g uncooked', notes: 'Cooks to 124g' },
-    { id: 3, dish: 'Rice', mealType: 'Lunch', qty: 0.5, unit: 'rice cup uncooked', notes: '190g cooked, fits 1 giant silicone tray' },
-    { id: 4, dish: 'Rice', mealType: 'Dinner', qty: 0.25, unit: 'rice cup uncooked', notes: '95g cooked' },
-    { id: 5, dish: 'Pesto (big green tray)', mealType: 'Lunch', qty: 1.5, unit: 'large ice cubes', notes: 'Per 75g uncooked pasta' },
-    { id: 6, dish: 'Pesto (big green tray)', mealType: 'Dinner', qty: 1, unit: 'large ice cube', notes: 'Per 50g uncooked pasta' },
-    { id: 7, dish: 'Pesto (small tray)', mealType: 'Lunch', qty: 2, unit: 'small cubes', notes: 'Per 75g uncooked pasta' },
+    { id: 1,  dish: 'Pasta (uncooked)',              mealType: 'Lunch',     qty: 75,   unit: 'g',   notes: '186g cooked' },
+    { id: 2,  dish: 'Pasta (uncooked)',              mealType: 'Dinner',    qty: 50,   unit: 'g',   notes: '124g cooked' },
+    { id: 3,  dish: 'Rice (uncooked)',               mealType: 'Lunch',     qty: 0.5,  unit: 'cup', notes: '190g cooked, fits 1 giant silicone block' },
+    { id: 4,  dish: 'Rice (uncooked)',               mealType: 'Dinner',    qty: 0.25, unit: 'cup', notes: '95g cooked' },
+    { id: 5,  dish: 'Pesto',                         mealType: 'Lunch',     qty: 1.5,  unit: 'cube', notes: 'Large cubes per 75g uncooked pasta' },
+    { id: 6,  dish: 'Pesto',                         mealType: 'Dinner',    qty: 1,    unit: 'cube', notes: 'Large cubes per 50g uncooked pasta' },
+    { id: 7,  dish: 'Pesto',                         mealType: 'Lunch',     qty: 2,    unit: 'cube', notes: 'Small cubes per 75g uncooked pasta' },
+    { id: 8,  dish: 'Hills kibble',                  mealType: 'Breakfast', qty: 30,   unit: 'g',   notes: 'Mackie and Mulberry' },
+    { id: 9,  dish: 'Hills kibble',                  mealType: 'Dinner',    qty: 20,   unit: 'g',   notes: 'Mulberry' },
+    { id: 10, dish: 'Hills kibble',                  mealType: 'Dinner',    qty: 30,   unit: 'g',   notes: 'Mackie' },
+    { id: 11, dish: 'Purina One indoor advantage',   mealType: 'Dinner',    qty: 1,    unit: 'pkt', notes: 'Mulberry' },
   ],
   shoppingList: [],
   shoppingExtras: [],
