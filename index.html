@@ -1077,7 +1077,7 @@ function expiryBadge(expiry) {
 // Deletion uses an inline two-step confirm pattern to avoid accidental deletes.
 // Tapping the trash icon sets confirmDel = {scope, id} and re-renders, showing tick/cross buttons in place.
 // Tapping tick calls doDel which performs the delete. Tapping cross clears confirmDel and re-renders.
-// scope values: 'ing' (pantry), 'dish', 'ready', 'serving', 'shopX' (shopping extras)
+// scope values: 'ing' (pantry), 'dish', 'ready', 'serving', 'shopX' (shopping extras), 'shopAll' (entire shopping list)
 // Dish deletion uses a separate dishDeleteConfirm flag because it lives inside a fullscreen modal
 // where render() does not update modal content — openDishModal() is called directly instead.
 function delBtn(scope, id) {
@@ -2265,7 +2265,7 @@ function saveReady(id) {
 // ═══════════════════════════════════════════════════
 // PORTIONS GUIDE
 // ═══════════════════════════════════════════════════
-// Accessible via scale SVG button (⚖️) in the header on all tabs — not a tab of its own.
+// Accessible via fork-and-spoon icon button in the header on all tabs — not a tab of its own.
 // Edit buttons always visible per row, no edit mode toggle needed.
 // Delete uses inline named-function confirm pattern inside the edit form (servingDeleteId flag),
 // mirroring the dish delete pattern. SVG close icon in edit form title navigates back to the list.
