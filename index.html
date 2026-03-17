@@ -870,7 +870,9 @@ if (!db.servingGuide || db.servingGuide.length === 0) {
   if (!db[k]) db[k] = [];
 });
 if (!db.weeks) db.weeks = {};
-// Wipe ready meals if none have a week field (sample data from before week field was added)
+// Wipe ready meals if none have a week field.
+// This handles data created before the week field was introduced (e.g. sample data or old records).
+// Safe to remove once all users are confirmed to be on data that includes the week field.
 if (db.readyMeals.length > 0 && !db.readyMeals.some(m => m.week)) {
   db.readyMeals = [];
   saveData();
@@ -1064,7 +1066,7 @@ function renderContent() {
   const content = document.getElementById('content');
   const strip = document.getElementById('week-strip');
   const header = document.getElementById('header');
-  const weekAware = activeTab === 0 || activeTab === 1;
+  const weekAware = activeTab === 0 || activeTab === 1 || activeTab === 2;
   strip.classList.toggle('hidden', !weekAware);
   header.classList.toggle('no-strip', !weekAware);
 
@@ -1787,8 +1789,7 @@ function renderReady() {
       <div class="stat-cell"><div class="stat-val" style="color:${carbsCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${carbsCount}</div><div class="stat-lbl">Carbs</div></div>
       <div class="stat-cell"><div class="stat-val" style="color:${fullMealCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${fullMealCount}</div><div class="stat-lbl">Full Meal</div></div>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <span style="font-size:12px;color:var(--text-muted)">Week of ${fmtDateFull(viewWeek)}</span>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
       <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openReadyModal()">+ Add Meal</button>
     </div>
   </div>`;
@@ -1825,7 +1826,7 @@ function renderReady() {
         <div class="ready-card-body">
           <div class="serving-counter">
             <button class="counter-btn" onclick="adjReadyServings(${m.id},-1)">−</button>
-            <span class="counter-val">${m.servings}</span>
+            <input class="counter-val" type="number" min="0" id="ready-sv-${m.id}" value="${m.servings}" onchange="setReadyServings(${m.id},this.value)" onblur="setReadyServings(${m.id},this.value)">
             <button class="counter-btn" onclick="adjReadyServings(${m.id},1)">+</button>
           </div>
           <div class="ready-meta">
@@ -1843,7 +1844,18 @@ function renderReady() {
 function adjReadyServings(id, delta) {
   const m = db.readyMeals.find(x => x.id === id);
   if (!m) return;
-  m.servings = Math.max(0, (m.servings || 0) + delta);
+  const inputEl = document.getElementById('ready-sv-' + id);
+  const current = inputEl ? (parseInt(inputEl.value) || 0) : (m.servings || 0);
+  m.servings = Math.max(0, current + delta);
+  saveData();
+  render();
+}
+
+function setReadyServings(id, val) {
+  const m = db.readyMeals.find(x => x.id === Number(id));
+  if (!m) return;
+  const n = parseInt(val);
+  if (!isNaN(n) && n >= 0) m.servings = n;
   saveData();
   render();
 }
@@ -1931,11 +1943,9 @@ function openReadyModal(id) {
     .filter(d => wd.selectedDishes.includes(d.id))
     .map(d => d.name);
 
-  // Build carried suggestions from prior week (Sat–Fri window)
-  const priorWkStart = addDays(viewWeek, -9); // Saturday before prior Monday
-  const priorWkEnd = addDays(viewWeek, -2);   // Friday before current week Saturday (exclusive = current Sat)
+  // Build carried suggestions from prior week by week field
   const carriedNames = db.readyMeals
-    .filter(r => r.carried && r.cooked >= priorWkStart && r.cooked < priorWkEnd)
+    .filter(r => r.carried && r.week === addWks(viewWeek, -1))
     .map(r => r.name);
 
   // Build rmSuggestions: carried first (deduped against cook plan), then remaining cook plan
@@ -1968,9 +1978,9 @@ function openReadyModal(id) {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Week</label>
+        <label class="form-label">Week to eat</label>
         <select class="form-select" id="rm-week">
-          ${[-1,0,1,2].map(n => { const w = addWks(viewWeek, n); const label = n === -1 ? 'Prior week' : n === 0 ? 'This week' : n === 1 ? 'Next week' : '2 weeks ahead'; return `<option value="${w}"${(m?.week||viewWeek)===w?' selected':''}>${label} (${fmtDate(w)})</option>`; }).join('')}
+          ${[-1,0,1,2].map(n => { const w = addWks(viewWeek, n); const marker = n === -1 ? ' (-1)' : n === 0 ? ' ✓' : n === 1 ? ' (+1)' : ' (+2)'; return `<option value="${w}"${(m?.week||viewWeek)===w?' selected':''}>${fmtDate(w)}${marker}</option>`; }).join('')}
         </select>
       </div>
       <div class="form-group">
@@ -2044,6 +2054,7 @@ function saveReady(id) {
     db.readyMeals.push(obj);
   }
   saveData();
+  viewWeek = obj.week;
   closeModal();
   render();
 }
