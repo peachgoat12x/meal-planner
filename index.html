@@ -640,6 +640,53 @@
     cursor: pointer;
   }
   .shop-empty { padding: 20px 0; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+  /* ── RM SUGGESTION DROPDOWN ── */
+  .rm-suggestions {
+    width: 100%;
+    border: 1.5px solid var(--green-primary);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    background: white;
+    margin-top: -2px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .rm-suggestions.hidden { display: none; }
+  .rm-suggestion-row {
+    padding: 10px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    line-height: 1.4;
+  }
+  .rm-suggestion-row:last-child { border-bottom: none; }
+  .rm-suggestion-row:active { background: var(--green-light); }
+  .rm-suggestion-row.carried {
+    color: #92400e;
+    font-weight: 600;
+    background: #fffbeb;
+  }
+  .rm-suggestion-row.carried:active { background: #fef3c7; }
+
+  /* ── CARRIED TOGGLE ── */
+  .carried-toggle {
+    background: none;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .carried-toggle.active {
+    background: #fef3c7;
+    border-color: #fcd34d;
+    color: #92400e;
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
@@ -743,6 +790,9 @@ let thisWeekCollapsed = false;
 let thisWeekUserSet = false; // tracks whether user has manually toggled the panel
 let dishReplaceConfirm = false;
 let dishDeleteConfirm = false;
+let rmIsLeftover = false;
+let rmSuggestions = [];
+let rmSelecting = false;
 
 // ═══════════════════════════════════════════════════
 // LOCAL STORAGE
@@ -970,6 +1020,26 @@ function doDel(scope, id) {
 }
 
 // ═══════════════════════════════════════════════════
+// CARRIED / LEFTOVER HELPERS
+// ═══════════════════════════════════════════════════
+function carriedToggleHtml(id, carried) {
+  return `<button class="carried-toggle${carried ? ' active' : ''}" onclick="toggleCarried(${id})" title="Mark as leftover for next week">${carried ? '🔁 Carried' : '🔁'}</button>`;
+}
+
+function sortReadyMeals(meals) {
+  return [...meals].sort((a, b) => (b.isLeftover ? 1 : 0) - (a.isLeftover ? 1 : 0));
+}
+
+function toggleCarried(id) {
+  id = Number(id);
+  const m = db.readyMeals.find(x => x.id === id);
+  if (!m) return;
+  m.carried = !m.carried;
+  saveData();
+  render();
+}
+
+// ═══════════════════════════════════════════════════
 // SCROLL PRESERVATION
 // ═══════════════════════════════════════════════════
 function render() {
@@ -1059,6 +1129,11 @@ function closeModal(e) {
     document.getElementById('modal-content').classList.remove('modal-fullscreen');
     confirmDel = null;
     dishDeleteConfirm = false;
+    if (rmOutsideClickListener) {
+      document.removeEventListener('click', rmOutsideClickListener);
+      document.removeEventListener('touchstart', rmOutsideClickListener);
+      rmOutsideClickListener = null;
+    }
   }
 }
 
@@ -1072,18 +1147,6 @@ function renderHome() {
     return d <= 14;
   });
 
-  const wd = getWeekData(viewWeek);
-  const selectedDishes = db.dishes.filter(d => wd.selectedDishes.includes(d.id));
-
-  // Group by category
-  const catOrder = ['Protein', 'Fibre', 'Carbs', 'Full Meal'];
-  const grouped = {};
-  selectedDishes.forEach(d => {
-    const cat = d.category;
-    if (!grouped[cat]) grouped[cat] = [];
-    grouped[cat].push(d);
-  });
-
   let html = '<div class="section" style="padding-top:14px">';
 
   // Expiry banner
@@ -1093,42 +1156,29 @@ function renderHome() {
 
   // Week banner
   html += `<div class="week-banner-card">
-    <div class="label">Cook Plan</div>
+    <div class="label">Ready Meals</div>
     <div class="week-title">Week of ${fmtDateFull(viewWeek)}</div>
   </div>`;
 
-  // Selected dishes
-  if (selectedDishes.length === 0) {
-    html += `<div class="card"><div style="padding:20px 14px;color:var(--text-muted);font-size:13px;text-align:center">No dishes selected for this week.<br>Head to the Dishes tab to build your plan.</div></div>`;
+  // Ready meals summary — filter to viewed week by cooked date
+  const weekEnd = addWks(viewWeek, 1);
+  const weekMeals = db.readyMeals.filter(m => m.cooked && m.cooked >= viewWeek && m.cooked < weekEnd);
+
+  if (weekMeals.length === 0) {
+    html += `<div class="card"><div style="padding:20px 14px;color:var(--text-muted);font-size:13px;text-align:center">No ready meals this week.<br>Head to the Ready tab to log cooked batches.</div></div>`;
   } else {
     html += '<div class="card">';
-    const orderedCats = [...catOrder, ...Object.keys(grouped).filter(c => !catOrder.includes(c))];
-    orderedCats.forEach(cat => {
-      if (!grouped[cat]) return;
-      html += `<div style="padding:8px 14px 2px">${catBadge(cat)}</div>`;
-      grouped[cat].forEach(dish => {
-        const servings = getDishServings(dish.id, viewWeek);
-        html += `<div class="item-row" style="border-bottom:none">
-          <div class="item-main"><div class="item-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${dish.id})">${dish.name}</div></div>
-          <div style="font-size:13px;font-weight:600;color:var(--green-primary)">${servings} servings</div>
-        </div>`;
-      });
-    });
-    html += '</div>';
-  }
-
-  // Ready meals summary — only for current week
-  if (viewWeek === thisMonday && db.readyMeals.length > 0) {
-    html += `<div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">Ready Meals</div>`;
-    html += '<div class="card">';
-    db.readyMeals.forEach(m => {
+    sortReadyMeals(weekMeals).forEach(m => {
+      const nameDisplay = `${m.isLeftover ? '* ' : ''}${escHtml(m.name)}`;
+      const did = m.dishId || dishIdByName(m.name);
       html += `<div class="item-row">
         <div class="item-main">
-          ${(() => { const did = dishIdByName(m.name); return did ? `<div class="item-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${did})">${m.name}</div>` : `<div class="item-name">${m.name}</div>`; })()}
+          ${did ? `<div class="item-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${did})">${nameDisplay}</div>` : `<div class="item-name">${nameDisplay}</div>`}
           <div class="item-sub">${m.servings} servings · ${m.eatBy ? 'Eat by ' + fmtDate(m.eatBy) : ''}</div>
         </div>
         ${m.category ? catBadge(m.category) : ''}
         ${locBadge(m.loc)}
+        ${carriedToggleHtml(m.id, m.carried)}
       </div>`;
     });
     html += '</div>';
@@ -1713,7 +1763,8 @@ function saveDish(id) {
 // TAB 4 — READY MEALS
 // ═══════════════════════════════════════════════════
 function renderReady() {
-  const meals = db.readyMeals;
+  const weekEnd = addWks(viewWeek, 1);
+  const meals = db.readyMeals.filter(m => m.cooked && m.cooked >= viewWeek && m.cooked < weekEnd);
   const proteinCount = meals.filter(m => m.category === 'Protein').length;
   const fibreCount = meals.filter(m => m.category === 'Fibre').length;
   const carbsCount = meals.filter(m => m.category === 'Carbs').length;
@@ -1739,23 +1790,26 @@ function renderReady() {
     </div>`;
   } else {
     html += `<div style="padding:0 14px 14px">`;
-    meals.forEach(m => {
+    sortReadyMeals(meals).forEach(m => {
       const eatByDays = m.eatBy ? daysUntilExpiry(m.eatBy) : null;
       let eatByStr = m.eatBy ? `Eat by ${fmtDate(m.eatBy)}` : '';
       let eatByStyle = '';
       if (eatByDays !== null && eatByDays < 0) { eatByStyle = 'color:#b91c1c;font-weight:600'; eatByStr = `Expired (${fmtDate(m.eatBy)})`; }
       else if (eatByDays !== null && eatByDays <= 3) { eatByStyle = 'color:#d97706;font-weight:600'; }
+      const nameDisplay = `${m.isLeftover ? '* ' : ''}${escHtml(m.name)}`;
+      const did = m.dishId || dishIdByName(m.name);
 
       html += `<div class="ready-card">
         <div class="ready-card-top">
           ${delBtn('ready', m.id)}
           <div class="item-main">
-            ${(() => { const did = dishIdByName(m.name); return did ? `<div class="item-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${did})">${escHtml(m.name)}</div>` : `<div class="item-name">${escHtml(m.name)}</div>`; })()}
+            ${did ? `<div class="item-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${did})">${nameDisplay}</div>` : `<div class="item-name">${nameDisplay}</div>`}
           </div>
           <div class="ready-card-badges">
             ${m.category ? catBadge(m.category) : ''}
             ${locBadge(m.loc)}
           </div>
+          ${carriedToggleHtml(m.id, m.carried)}
           <button class="btn-icon" onclick="openReadyModal(${m.id})">✏️</button>
         </div>
         <div class="ready-card-body">
@@ -1793,10 +1847,73 @@ function prefillReadyServings(name) {
   }
 }
 
+function handleRmNameChange(input) {
+  const val = input.value;
+  if (val.endsWith('*')) {
+    input.value = val.slice(0, -1).trim();
+    const servingsInput = document.getElementById('rm-servings');
+    if (servingsInput) servingsInput.value = 1;
+    const eatByInput = document.getElementById('rm-eatby');
+    if (eatByInput) {
+      const eatByDate = new Date(viewWeek + 'T00:00:00');
+      eatByDate.setDate(eatByDate.getDate() + 3);
+      eatByInput.value = localStr(eatByDate);
+    }
+    rmIsLeftover = true;
+  } else {
+    rmIsLeftover = false;
+    prefillReadyServings(val);
+  }
+}
+
+function showRmSuggestions() {
+  renderRmSuggestions(rmSuggestions);
+}
+
+function filterRmSuggestions(val) {
+  if (rmSelecting) { rmSelecting = false; return; }
+  const container = document.getElementById('rm-suggestions');
+  if (!container) return;
+  const q = val.trim().toLowerCase();
+  const filtered = q ? rmSuggestions.filter(s => s.name.toLowerCase().includes(q)) : rmSuggestions;
+  renderRmSuggestions(filtered);
+}
+
+function renderRmSuggestions(list) {
+  const container = document.getElementById('rm-suggestions');
+  if (!container) return;
+  if (list.length === 0) {
+    container.classList.add('hidden');
+    return;
+  }
+  container.innerHTML = list.map(s =>
+    `<div class="rm-suggestion-row${s.isCarried ? ' carried' : ''}" onmousedown="selectRmSuggestion('${escHtml(s.name)}',${s.isCarried})">${s.isCarried ? '* ' : ''}${escHtml(s.name)}</div>`
+  ).join('');
+  container.classList.remove('hidden');
+}
+
+function selectRmSuggestion(name, isCarried) {
+  const input = document.getElementById('rm-name');
+  if (!input) return;
+  rmSelecting = true;
+  input.value = isCarried ? name + '*' : name;
+  handleRmNameChange(input);
+  hideRmSuggestions();
+}
+
+function hideRmSuggestions() {
+  const container = document.getElementById('rm-suggestions');
+  if (container) container.classList.add('hidden');
+}
+
+let rmOutsideClickListener = null;
+
 function openReadyModal(id) {
+  rmIsLeftover = false;
   const m = id ? db.readyMeals.find(x => x.id === id) : null;
   const locs = ['Fridge', 'Freezer', 'Pantry'];
   const today = localStr(new Date());
+  const defaultCooked = m ? (m.cooked || today) : viewWeek;
 
   // Build dish name suggestions from current week's selected dishes
   const wd = getWeekData(viewWeek);
@@ -1804,13 +1921,26 @@ function openReadyModal(id) {
     .filter(d => wd.selectedDishes.includes(d.id))
     .map(d => d.name);
 
+  // Build carried suggestions from prior week's ready meals
+  const priorMonday = addWks(viewWeek, -1);
+  const priorSunday = addWks(viewWeek, 0);
+  const carriedNames = db.readyMeals
+    .filter(r => r.carried && r.cooked >= priorMonday && r.cooked < priorSunday)
+    .map(r => r.name);
+
+  // Build rmSuggestions: carried first (deduped against cook plan), then remaining cook plan
+  rmSuggestions = [
+    ...carriedNames.map(n => ({ name: n, isCarried: true })),
+    ...weekDishNames.filter(n => !carriedNames.includes(n)).map(n => ({ name: n, isCarried: false })),
+  ];
+
   openModal(`
     <div class="modal-title">${m ? 'Edit Ready Meal' : 'Add Ready Meal'}</div>
     <div class="form-group">
       <label class="form-label">Dish Name *</label>
       <input class="form-input" id="rm-name" value="${escHtml(m?.name || '')}" placeholder="e.g. Braised Pork Belly"
-        list="rm-name-list" autocomplete="off" onchange="prefillReadyServings(this.value)">
-      <datalist id="rm-name-list">${weekDishNames.map(n => `<option value="${escHtml(n)}">`).join('')}</datalist>
+        autocomplete="off" onfocus="showRmSuggestions()" oninput="filterRmSuggestions(this.value)" onchange="handleRmNameChange(this)">
+      <div class="rm-suggestions hidden" id="rm-suggestions"></div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -1835,7 +1965,7 @@ function openReadyModal(id) {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Date Cooked</label>
-        <input class="form-input" id="rm-cooked" type="date" value="${m?.cooked || today}">
+        <input class="form-input" id="rm-cooked" type="date" value="${defaultCooked}">
       </div>
       <div class="form-group">
         <label class="form-label">Eat By (optional)</label>
@@ -1854,14 +1984,35 @@ function openReadyModal(id) {
       </div>
     </div>
   `);
+
+  // Register outside-tap listener (click + touchstart for mobile)
+  if (rmOutsideClickListener) {
+    document.removeEventListener('click', rmOutsideClickListener);
+    document.removeEventListener('touchstart', rmOutsideClickListener);
+  }
+  rmOutsideClickListener = function(e) {
+    const container = document.getElementById('rm-suggestions');
+    const input = document.getElementById('rm-name');
+    if (container && input && !container.contains(e.target) && e.target !== input) {
+      hideRmSuggestions();
+    }
+  };
+  setTimeout(() => {
+    document.addEventListener('click', rmOutsideClickListener);
+    document.addEventListener('touchstart', rmOutsideClickListener);
+  }, 0);
 }
 
 function saveReady(id) {
   const name = document.getElementById('rm-name').value.trim();
   if (!name) return alert('Dish name is required');
+  const matchedDish = db.dishes.find(d => d.name.toLowerCase() === name.toLowerCase());
   const obj = {
     id: id || nextId(),
     name,
+    dishId: matchedDish ? matchedDish.id : null,
+    isLeftover: id ? (db.readyMeals.find(x => x.id === id)?.isLeftover || false) : rmIsLeftover,
+    carried: id ? (db.readyMeals.find(x => x.id === id)?.carried || false) : false,
     category: document.getElementById('rm-cat').value,
     servings: parseInt(document.getElementById('rm-servings').value) || 0,
     loc: document.getElementById('rm-loc').value,
