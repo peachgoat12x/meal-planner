@@ -242,7 +242,6 @@
     border-radius: 8px;
     font-size: 14px;
     background: white;
-    margin-bottom: 10px;
   }
   .search-input:focus { outline: none; border-color: var(--green-primary); }
 
@@ -393,7 +392,7 @@
     border-radius: 0;
     max-height: 100dvh;
     height: 100dvh;
-    padding: 0 0 30px;
+    padding: env(safe-area-inset-top, 8px) 0 30px;
   }
   .recipe-topbar {
     display: flex;
@@ -668,7 +667,7 @@
   .carry-btn.active { color: var(--amber); }
 
   /* ── SEARCH WRAP (SVG icon overlaid on input) ── */
-  .search-wrap { position: relative; }
+  .search-wrap { position: relative; margin-bottom: 10px; }
   .search-icon {
     position: absolute;
     left: 10px;
@@ -710,7 +709,7 @@
         </div>
       </div>
       <button class="btn-icon" onclick="openPortionsModal()" title="Portions guide" style="color:white;padding:4px 8px;line-height:0">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="7" y1="21" x2="17" y2="21"/><line x1="5" y1="8" x2="19" y2="8"/><path d="M5 8C5 8 4 11.5 6.5 11.5C9 11.5 8 8 8 8"/><path d="M16 8C16 8 15 11.5 17.5 11.5C20 11.5 19 8 19 8"/></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="2" x2="8" y2="22"/><path d="M5 2H11V8C11 9.7 9.7 11 8 11C6.3 11 5 9.7 5 8V2Z"/><line x1="17" y1="12" x2="17" y2="22"/><path d="M14 2C14 2 14 7 17 9C20 7 20 2 20 2"/></svg>
       </button>
     </div>
     <div id="week-strip">
@@ -743,7 +742,7 @@
 // SVG ICON CONSTANTS
 // All icons: stroke-width 2, round linecap & linejoin, no fill.
 // Use these everywhere rather than repeating SVG markup.
-// 18×18: action icons in btn-icon contexts (edit, trash, close, search, warn, scale)
+// 18×18: action icons in btn-icon contexts (edit, trash, close, search, warn, broom)
 // 16×16: smaller inline icons (tick, cross, remove, copy, export, import, cart, plan, cal)
 // 48×48: large empty-state bowl (ICO_BOWL_LG)
 // ═══════════════════════════════════════════════════
@@ -761,11 +760,11 @@ const ICO_EXPORT  = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"
 const ICO_IMPORT  = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" ${_S}><path d="M12 15V3"/><path d="M8 7L12 3L16 7"/><path d="M3 17V19C3 20 4 21 5 21H19C20 21 21 20 21 19V17"/></svg>`;
 const ICO_CART    = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" ${_S}><path d="M4 4H6L8.5 15H17L19.5 7H7"/><circle cx="10" cy="18.5" r="1.5"/><circle cx="16.5" cy="18.5" r="1.5"/></svg>`;
 const ICO_PLAN    = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" ${_S}><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>`;
-const ICO_SCALE   = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" ${_S}><line x1="12" y1="3" x2="12" y2="21"/><line x1="7" y1="21" x2="17" y2="21"/><line x1="5" y1="8" x2="19" y2="8"/><path d="M5 8C5 8 4 11.5 6.5 11.5C9 11.5 8 8 8 8"/><path d="M16 8C16 8 15 11.5 17.5 11.5C20 11.5 19 8 19 8"/></svg>`;
 const ICO_BOWL_LG = `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12H19"/><path d="M6 12C6 16.5 8.5 19 12 19C15.5 19 18 16.5 18 12"/><path d="M9 9C9 8 9.5 7 9.5 6"/><path d="M12 8C12 7 12.5 6 12.5 5"/><path d="M15 9C15 8 15.5 7 15.5 6"/></svg>`;
 const ICO_CHEVDN  = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9L12 15L19 9"/></svg>`;
 const ICO_CHEVUP  = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15L12 9L19 15"/></svg>`;
 const ICO_CAL     = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" ${_S}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>`;
+const ICO_BROOM   = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" ${_S}><line x1="12" y1="2" x2="12" y2="14"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="14" x2="6" y2="22"/><line x1="10" y1="14" x2="9" y2="22"/><line x1="12" y1="14" x2="12" y2="22"/><line x1="14" y1="14" x2="15" y2="22"/><line x1="16" y1="14" x2="18" y2="22"/></svg>`;
 
 // ═══════════════════════════════════════════════════
 // DATE HELPERS
@@ -1107,8 +1106,9 @@ function doDel(scope, id) {
   if (scope === 'ing') db.ingredients = db.ingredients.filter(x => x.id !== id);
   else if (scope === 'dish') { db.dishes = db.dishes.filter(x => x.id !== id); closeModal(); }
   else if (scope === 'ready') db.readyMeals = db.readyMeals.filter(x => x.id !== id);
-  else if (scope === 'serving') { db.servingGuide = db.servingGuide.filter(x => x.id !== id); openModal(renderServingModal()); }
+  else if (scope === 'serving') { db.servingGuide = db.servingGuide.filter(x => x.id !== id); openModal(renderServingModal(), true); }
   else if (scope === 'shopX') db.shoppingExtras = db.shoppingExtras.filter(x => x.id !== id);
+  else if (scope === 'shopAll') { db.shoppingList = []; db.shoppingExtras = []; }
   saveData();
   render();
 }
@@ -1174,6 +1174,10 @@ function renderContent() {
 
   const tabs = [renderHome, renderDishes, renderReady, renderPantry, renderShop];
   content.innerHTML = tabs[activeTab]();
+
+  // Populate the pantry item list (kept separate so search oninput can
+  // update it without recreating the input element and closing the keyboard)
+  if (activeTab === 3) renderPantryList();
 }
 
 // ═══════════════════════════════════════════════════
@@ -1334,30 +1338,10 @@ function renderPantry() {
   const cats = ['All', 'Protein', 'Fibre', 'Carbs', 'Dry Goods', 'Condiments', 'Sauces', 'Snacks', 'Drinks'];
   const locs = ['All', 'Fridge', 'Freezer', 'Pantry'];
 
-  let items = [...db.ingredients];
-
-  // Apply search
-  if (pantrySearch.trim()) {
-    const q = pantrySearch.toLowerCase();
-    items = items.filter(i => i.name.toLowerCase().includes(q));
-  }
-
-  // Apply expiry filter
-  if (pantryExpFilter) {
-    items = items.filter(i => {
-      if (!i.expiry) return false;
-      return daysUntilExpiry(i.expiry) <= 14;
-    });
-    items.sort((a, b) => daysUntilExpiry(a.expiry) - daysUntilExpiry(b.expiry));
-  } else {
-    if (pantryLocFilter !== 'All') items = items.filter(i => i.loc === pantryLocFilter);
-    if (pantryCatFilter !== 'All') items = items.filter(i => i.category === pantryCatFilter);
-  }
-
   let html = `<div class="section">
     <div class="search-wrap">
       <span class="search-icon">${ICO_SEARCH}</span>
-      <input class="search-input" type="search" placeholder="Search ingredients…" value="${escHtml(pantrySearch)}" oninput="pantrySearch=this.value;confirmDel=null;render()">
+      <input class="search-input" type="search" placeholder="Search ingredients…" value="${escHtml(pantrySearch)}" oninput="pantrySearch=this.value;confirmDel=null;renderPantryList()">
     </div>
 
     <div class="filter-group">
@@ -1380,9 +1364,38 @@ function renderPantry() {
         <button class="chip warning-chip${pantryExpFilter?' active':''}" onclick="toggleExpFilter()" style="display:inline-flex;align-items:center;gap:5px">${ICO_WARN} Expiring / Expired</button>
       </div>
     </div>
-  </div>`;
+  </div>
+  <div id="pantry-list"></div>`;
 
-  html += `<div style="padding:0 14px 6px;display:flex;justify-content:space-between;align-items:center">
+  return html;
+}
+
+// Renders only the item count, Add button, and card list below the pantry filters.
+// Called from the search oninput handler so the input element is never recreated
+// mid-keystroke — preventing the keyboard from closing on mobile.
+function renderPantryList() {
+  const container = document.getElementById('pantry-list');
+  if (!container) return;
+
+  let items = [...db.ingredients];
+
+  if (pantrySearch.trim()) {
+    const q = pantrySearch.toLowerCase();
+    items = items.filter(i => i.name.toLowerCase().includes(q));
+  }
+
+  if (pantryExpFilter) {
+    items = items.filter(i => {
+      if (!i.expiry) return false;
+      return daysUntilExpiry(i.expiry) <= 14;
+    });
+    items.sort((a, b) => daysUntilExpiry(a.expiry) - daysUntilExpiry(b.expiry));
+  } else {
+    if (pantryLocFilter !== 'All') items = items.filter(i => i.loc === pantryLocFilter);
+    if (pantryCatFilter !== 'All') items = items.filter(i => i.category === pantryCatFilter);
+  }
+
+  let html = `<div style="padding:0 14px 6px;display:flex;justify-content:space-between;align-items:center">
     <span style="font-size:12px;color:var(--text-muted)">${items.length} item${items.length!==1?'s':''}</span>
     <button class="btn-primary btn-primary-sm" onclick="openIngModal()">+ Add Item</button>
   </div>`;
@@ -1410,7 +1423,7 @@ function renderPantry() {
     html += '</div>';
   }
 
-  return html;
+  container.innerHTML = html;
 }
 
 function setLocFilter(l) { pantryLocFilter = l; pantryExpFilter = false; confirmDel = null; render(); }
@@ -1517,7 +1530,7 @@ function renderDishes() {
   const totalServings = selectedDishes.reduce((sum, d) => sum + getDishServings(d.id, viewWeek), 0);
 
   let html = `<div class="section">
-    <div class="context-banner" style="display:flex;align-items:center;gap:6px">${ICO_CAL} Selecting for: Week of ${fmtDateFull(viewWeek)} · ${hasSelected ? selectedDishes.length + ' dish' + (selectedDishes.length!==1?'es':'') + ' selected' : 'No dishes selected'}</div>
+    <div class="context-banner" style="display:flex;align-items:center;gap:6px">${ICO_CAL} ${hasSelected ? selectedDishes.length + ' dish' + (selectedDishes.length!==1?'es':'') + ' selected' : 'No dishes selected'}</div>
   </div>`;
 
   // This Week Panel
@@ -2261,10 +2274,13 @@ function saveReady(id) {
 function renderServingModal() {
   const rows = db.servingGuide;
 
-  let html = `<div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
-    <span style="display:flex;align-items:center;gap:7px">${ICO_SCALE} Portions Guide</span>
-    <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
-  </div>`;
+  let html = `<div class="recipe-topbar">
+      <div class="modal-title" style="margin-bottom:0">Portions Guide</div>
+      <div class="recipe-topbar-actions">
+        <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
+      </div>
+    </div>
+    <div class="recipe-body">`;
 
   if (rows.length === 0) {
     html += `<div style="padding:20px 0;text-align:center;color:var(--text-muted);font-size:13px">No entries yet.</div>`;
@@ -2300,13 +2316,15 @@ function renderServingModal() {
     <button class="btn-primary btn-primary-sm" onclick="openServingModal()">+ Add Entry</button>
   </div>`;
 
+  html += `</div>`; // close recipe-body
+
   return html;
 }
 
 function openPortionsModal() {
   confirmDel = null;
   servingDeleteId = null;
-  openModal(renderServingModal());
+  openModal(renderServingModal(), true);
 }
 
 function openServingModal(id) {
@@ -2324,41 +2342,45 @@ function openServingModal(id) {
     : '';
 
   openModal(`
-    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
-      <span>${r ? 'Edit Entry' : 'Add Entry'}</span>
-      <button class="btn-icon ico-muted" onclick="openPortionsModal()">${ICO_CLOSE}</button>
+    <div class="recipe-topbar">
+      <div class="modal-title" style="margin-bottom:0">${r ? 'Edit Entry' : 'Add Entry'}</div>
+      <div class="recipe-topbar-actions">
+        <button class="btn-icon ico-muted" onclick="openPortionsModal()">${ICO_CLOSE}</button>
+      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Dish *</label>
-      <input class="form-input" id="sg-dish" value="${escHtml(r?.dish || '')}" placeholder="e.g. Pasta">
-    </div>
-    <div class="form-row">
+    <div class="recipe-body">
       <div class="form-group">
-        <label class="form-label">Meal Type</label>
-        <select class="form-select" id="sg-meal">
-          ${mealTypes.map(t => `<option${r?.mealType === t ? ' selected' : ''}>${t}</option>`).join('')}
-        </select>
+        <label class="form-label">Dish *</label>
+        <input class="form-input" id="sg-dish" value="${escHtml(r?.dish || '')}" placeholder="e.g. Pasta">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Meal Type</label>
+          <select class="form-select" id="sg-meal">
+            ${mealTypes.map(t => `<option${r?.mealType === t ? ' selected' : ''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Qty</label>
+          <input class="form-input" id="sg-qty" type="number" step="0.25" value="${r?.qty ?? ''}">
+        </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Qty</label>
-        <input class="form-input" id="sg-qty" type="number" step="0.25" value="${r?.qty ?? ''}">
+        <label class="form-label">Unit</label>
+        ${unitComboHtml('sg-unit', r?.unit||'')}
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes (optional)</label>
+        <input class="form-input" id="sg-notes" value="${escHtml(r?.notes || '')}" placeholder="e.g. Cooks to 186g">
+      </div>
+      <div class="modal-footer">
+        <div>${deleteFooter}</div>
+        <div class="modal-footer-right">
+          <button class="btn-primary" onclick="saveServing(${id || 'null'})">Save</button>
+        </div>
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Unit</label>
-      ${unitComboHtml('sg-unit', r?.unit||'')}
-    </div>
-    <div class="form-group">
-      <label class="form-label">Notes (optional)</label>
-      <input class="form-input" id="sg-notes" value="${escHtml(r?.notes || '')}" placeholder="e.g. Cooks to 186g">
-    </div>
-    <div class="modal-footer">
-      <div>${deleteFooter}</div>
-      <div class="modal-footer-right">
-        <button class="btn-primary" onclick="saveServing(${id || 'null'})">Save</button>
-      </div>
-    </div>
-  `);
+  `, true);
 }
 
 function startServingDelete(id) {
@@ -2376,7 +2398,7 @@ function confirmServingDelete(id) {
   id = Number(id);
   db.servingGuide = db.servingGuide.filter(x => x.id !== id);
   saveData();
-  openModal(renderServingModal());
+  openModal(renderServingModal(), true);
 }
 
 function saveServing(id) {
@@ -2398,7 +2420,7 @@ function saveServing(id) {
     db.servingGuide.push(obj);
   }
   saveData();
-  openModal(renderServingModal());
+  openModal(renderServingModal(), true);
 }
 
 // ═══════════════════════════════════════════════════
@@ -2417,8 +2439,15 @@ function renderShop() {
     <div class="shop-header">
       <span class="shop-title" style="display:flex;align-items:center;gap:7px">${ICO_CART} Grocery List</span>
       <div class="shop-header-btns">
-        <button class="btn-secondary" style="padding:6px 10px;font-size:12px;display:flex;align-items:center;gap:5px" onclick="copyShopList()" title="Copy list">${ICO_COPY} Copy</button>
         ${hasTicked ? `<button class="btn-icon ico" onclick="clearTicked()" title="Delete ticked items">${ICO_TRASH}</button>` : ''}
+        ${total > 0 ? (confirmDel && confirmDel.scope === 'shopAll'
+          ? `<div class="del-confirm">
+               <button class="btn-danger row-actions" onclick="doDel('shopAll',0)">${ICO_TICK}</button>
+               <button class="btn-cancel row-actions" onclick="cancelDel()">${ICO_CROSS}</button>
+             </div>`
+          : `<button class="btn-icon ico" onclick="startDel('shopAll',0)" title="Clear list">${ICO_BROOM}</button>`)
+        : ''}
+        <button class="btn-icon ico" onclick="copyShopList()" title="Copy list">${ICO_COPY}</button>
         <button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="openShopExtraModal()">+ Item</button>
       </div>
     </div>`;
