@@ -511,7 +511,7 @@
   }
   .ready-card-top {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     padding: 10px 12px;
     gap: 8px;
     border-bottom: 1px solid #f5f5f5;
@@ -519,9 +519,12 @@
   .ready-card-body {
     padding: 8px 12px 10px;
     display: flex;
-    align-items: flex-start;
-    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
+  .ready-card-meta { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; flex: 1; min-width: 0; }
+  .ready-card-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
   .ready-card-badges { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
   .ready-meta { font-size: 11px; color: var(--text-muted); margin-left: auto; text-align: right; line-height: 1.7; }
 
@@ -687,14 +690,34 @@
     color: #92400e;
     font-weight: 600;
   }
+
+  /* ── CARRY BTN (SVG icon) ── */
+  .carry-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 3px;
+    border-radius: 6px;
+    color: #ccc;
+    flex-shrink: 0;
+    line-height: 0;
+    transition: color 0.15s;
+  }
+  .carry-btn:active { background: #f0f0f0; }
+  .carry-btn.active { color: #d97706; }
 </style>
 </head>
 <body>
 <div id="app">
   <!-- HEADER -->
   <div id="header">
-    <div id="header-title">🍚 Meal Planner</div>
-    <div id="header-sub">Weekly cooking tracker</div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div id="header-title">🍚 Meal Planner</div>
+        <div id="header-sub">Weekly cooking tracker</div>
+      </div>
+      <button class="btn-icon" onclick="openPortionsModal()" title="Portions guide" style="color:white;font-size:20px;padding:4px 8px">⚖️</button>
+    </div>
     <div id="week-strip">
       <button class="week-arrow" onclick="shiftWeek(-1)">‹</button>
       <div id="week-dates"></div>
@@ -711,8 +734,7 @@
     <button class="tab-btn" onclick="switchTab(1)"><span class="tab-icon">📖</span>Dishes</button>
     <button class="tab-btn" onclick="switchTab(2)"><span class="tab-icon">🍱</span>Ready</button>
     <button class="tab-btn" onclick="switchTab(3)"><span class="tab-icon">🥬</span>Pantry</button>
-    <button class="tab-btn" onclick="switchTab(4)"><span class="tab-icon">⚖️</span>Serving</button>
-    <button class="tab-btn" onclick="switchTab(5)"><span class="tab-icon">🛒</span>List</button>
+    <button class="tab-btn" onclick="switchTab(4)"><span class="tab-icon">🛒</span>List</button>
   </div>
 
   <!-- MODAL OVERLAY -->
@@ -797,6 +819,7 @@ let thisWeekCollapsed = false;     // whether the This Week panel in Dishes tab 
 let thisWeekUserSet = false;       // true if user has manually toggled the panel (prevents auto-collapse)
 let dishReplaceConfirm = false;    // true when user has been asked to confirm replacing shop list
 let dishDeleteConfirm = false;     // true when dish delete confirm UI is showing in the edit modal
+let servingDeleteId = null;        // id of serving entry pending delete confirmation (null when none)
 
 // Ready Meals modal state — reset on openReadyModal, switchTab, and closeModal
 let rmIsLeftover = false;          // true when the current Add modal entry is being added from a carried suggestion
@@ -1059,7 +1082,7 @@ function doDel(scope, id) {
   if (scope === 'ing') db.ingredients = db.ingredients.filter(x => x.id !== id);
   else if (scope === 'dish') { db.dishes = db.dishes.filter(x => x.id !== id); closeModal(); }
   else if (scope === 'ready') db.readyMeals = db.readyMeals.filter(x => x.id !== id);
-  else if (scope === 'serving') db.servingGuide = db.servingGuide.filter(x => x.id !== id);
+  else if (scope === 'serving') { db.servingGuide = db.servingGuide.filter(x => x.id !== id); openModal(renderServingModal()); }
   else if (scope === 'shopX') db.shoppingExtras = db.shoppingExtras.filter(x => x.id !== id);
   saveData();
   render();
@@ -1077,7 +1100,15 @@ function doDel(scope, id) {
 //                Shown with * prefix in the ready meals list and modal title badge.
 // sortReadyMeals returns a copy sorted with isLeftover meals first — never mutates db.
 function carriedToggleHtml(id, carried) {
-  return `<button class="carried-toggle${carried ? ' active' : ''}" onclick="toggleCarried(${id})" title="Mark as leftover for next week">${carried ? '🔁 Carried' : '🔁'}</button>`;
+  // SVG: simple tupperware container — rectangle body + smaller rectangle lid
+  const col = carried ? '#d97706' : '#ccc';
+  return `<button class="carry-btn${carried ? ' active' : ''}" onclick="toggleCarried(${id})" title="${carried ? 'Carried — tap to unmark' : 'Mark as carried to next week'}">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="8" width="14" height="9" rx="1.5" fill="currentColor"/>
+      <rect x="5" y="5" width="10" height="3" rx="1" fill="currentColor" opacity="0.7"/>
+      <rect x="7" y="3.5" width="6" height="1.5" rx="0.75" fill="currentColor" opacity="0.5"/>
+    </svg>
+  </button>`;
 }
 
 function sortReadyMeals(meals) {
@@ -1117,7 +1148,7 @@ function renderContent() {
 
   if (weekAware) renderWeekStrip();
 
-  const tabs = [renderHome, renderDishes, renderReady, renderPantry, renderServing, renderShop];
+  const tabs = [renderHome, renderDishes, renderReady, renderPantry, renderShop];
   content.innerHTML = tabs[activeTab]();
 }
 
@@ -1161,7 +1192,6 @@ function switchTab(idx) {
   activeTab = idx;
   confirmDel = null;
   dishReplaceConfirm = false;
-  servingEditMode = false;
   rmIsLeftover = false;
   rmSuggestions = [];
   if (idx !== 1) thisWeekUserSet = false;
@@ -1607,7 +1637,7 @@ function doGenerateShopList() {
 
   db.shoppingList = newList;
   saveData();
-  switchTab(5);
+  switchTab(4);
 }
 
 // Dish Detail Modal
@@ -1868,26 +1898,29 @@ function renderReady() {
 
       html += `<div class="ready-card">
         <div class="ready-card-top">
-          ${delBtn('ready', m.id)}
           <div class="item-main">
-            ${did ? `<div class="item-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${did})">${nameDisplay}</div>` : `<div class="item-name">${nameDisplay}</div>`}
+            <div class="item-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openReadyDetail(${m.id})">${nameDisplay}</div>
           </div>
-          <div class="ready-card-badges">
-            ${m.category ? catBadge(m.category) : ''}
-            ${locBadge(m.loc)}
+          <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+            ${delBtn('ready', m.id)}
+            <button class="btn-icon" onclick="openReadyModal(${m.id})">✏️</button>
           </div>
-          ${carriedToggleHtml(m.id, m.carried)}
-          <button class="btn-icon" onclick="openReadyModal(${m.id})">✏️</button>
         </div>
         <div class="ready-card-body">
-          <div class="serving-counter">
-            <button class="counter-btn" onclick="adjReadyServings(${m.id},-1)">−</button>
-            <input class="counter-val" type="number" min="0" id="ready-sv-${m.id}" value="${m.servings}" onchange="setReadyServings(${m.id},this.value)" onblur="setReadyServings(${m.id},this.value)">
-            <button class="counter-btn" onclick="adjReadyServings(${m.id},1)">+</button>
+          <div class="ready-card-meta">
+            ${eatByStr ? `<div style="font-size:11px;${eatByStyle};width:100%">${eatByStr}</div>` : ''}
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              ${m.category ? catBadge(m.category) : ''}
+              ${locBadge(m.loc)}
+            </div>
           </div>
-          <div class="ready-meta">
-            ${(m.cooked || eatByStr) ? `<span${eatByStyle ? ` style="${eatByStyle}"` : ''}>${m.cooked ? `Cooked ${fmtDate(m.cooked)}` : ''}${m.cooked && eatByStr ? ' · ' : ''}${eatByStr}</span>` : ''}
-            ${m.note ? `<br><span style="color:#666">${escHtml(m.note)}</span>` : ''}
+          <div class="ready-card-actions">
+            ${carriedToggleHtml(m.id, m.carried)}
+            <div class="serving-counter">
+              <button class="counter-btn" onclick="adjReadyServings(${m.id},-1)">−</button>
+              <input class="counter-val" type="number" min="0" id="ready-sv-${m.id}" value="${m.servings}" onchange="setReadyServings(${m.id},this.value)" onblur="setReadyServings(${m.id},this.value)">
+              <button class="counter-btn" onclick="adjReadyServings(${m.id},1)">+</button>
+            </div>
           </div>
         </div>
       </div>`;
@@ -1895,6 +1928,45 @@ function renderReady() {
     html += `</div>`;
   }
   return html;
+}
+
+function openReadyDetail(id) {
+  const m = db.readyMeals.find(x => x.id === id);
+  if (!m) return;
+  const eatByDays = m.eatBy ? daysUntilExpiry(m.eatBy) : null;
+  let eatByStyle = '';
+  if (eatByDays !== null && eatByDays < 0) eatByStyle = 'color:#b91c1c;font-weight:600';
+  else if (eatByDays !== null && eatByDays <= 3) eatByStyle = 'color:#d97706;font-weight:600';
+
+  function row(label, value) {
+    if (!value) return '';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.6px">${label}</span>
+      <span style="font-size:14px;text-align:right">${value}</span>
+    </div>`;
+  }
+
+  openModal(`
+    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>${m.isLeftover ? '<span class="badge badge-orange" style="margin-right:6px;vertical-align:middle">* leftover</span>' : ''}${escHtml(m.name)}</span>
+      <button class="btn-icon" onclick="closeModal()" style="font-size:18px;font-weight:700;color:var(--text-muted)">✕</button>
+    </div>
+    <div style="margin-bottom:16px">
+      ${row('Week to eat', fmtDateFull(m.week))}
+      ${row('Category', m.category ? `<span class="badge badge-${({Protein:'protein',Fibre:'fibre',Carbs:'carbs','Full Meal':'fullmeal'}[m.category]||'grey')}">${m.category}</span>` : '')}
+      ${row('Location', `<span class="badge ${({Fridge:'badge-fridge',Freezer:'badge-freezer',Pantry:'badge-pantry'}[m.loc]||'badge-grey')}">${m.loc}</span>`)}
+      ${row('Servings', String(m.servings))}
+      ${row('Date cooked', m.cooked ? fmtDateFull(m.cooked) : '')}
+      ${m.eatBy ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.6px">Eat by</span>
+        <span style="font-size:14px;${eatByStyle}">${fmtDateFull(m.eatBy)}</span>
+      </div>` : ''}
+      ${row('Note', m.note ? escHtml(m.note) : '-')}
+    </div>
+    <div style="display:flex;justify-content:flex-end">
+      <button class="btn-primary" onclick="openReadyModal(${id})">✏️ Edit</button>
+    </div>
+  `);
 }
 
 function adjReadyServings(id, delta) {
@@ -2043,7 +2115,7 @@ function openReadyModal(id) {
   ];
 
   openModal(`
-    <div class="modal-title" id="rm-modal-title">${m ? 'Edit Ready Meal' : 'Add Ready Meal'}${m?.isLeftover ? '<span class="badge badge-orange" style="margin-left:8px;vertical-align:middle">* leftover</span>' : ''}</div>
+    <div class="modal-title" id="rm-modal-title" style="display:flex;justify-content:space-between;align-items:center"><span>${m ? 'Edit Ready Meal' : 'Add Ready Meal'}${m?.isLeftover ? '<span class="badge badge-orange" style="margin-left:8px;vertical-align:middle">* leftover</span>' : ''}</span><button class="btn-icon" onclick="closeModal()" style="font-size:18px;font-weight:700;color:var(--text-muted)">✕</button></div>
     <div class="form-group">
       <label class="form-label">Dish Name *</label>
       <input class="form-input" id="rm-name" value="${escHtml(m?.name || '')}" placeholder="e.g. Braised Pork Belly"
@@ -2093,7 +2165,6 @@ function openReadyModal(id) {
     <div class="modal-footer">
       <div></div>
       <div class="modal-footer-right">
-        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
         <button class="btn-primary" onclick="saveReady(${id || 'null'})">Save</button>
       </div>
     </div>
@@ -2148,74 +2219,81 @@ function saveReady(id) {
 }
 
 // ═══════════════════════════════════════════════════
-// TAB 5 — SERVING SIZE GUIDE
+// PORTIONS GUIDE — modal-based, accessible from header ⚖️ button on all tabs
+// Edit buttons always visible per row — no edit mode toggle needed.
+// Delete is via inline confirm inside the edit form, using servingDeleteId flag.
 // ═══════════════════════════════════════════════════
-let servingEditMode = false;
 
-function renderServing() {
+function renderServingModal() {
   const rows = db.servingGuide;
 
-  let html = `<div class="section" style="padding-top:14px">
-    <div class="serving-guide-header">
-      <span class="serving-guide-title">⚖️ Serving Size Guide</span>
-      <button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="toggleServingEdit()">
-        ${servingEditMode ? '✓ Done' : '✏️ Edit'}
-      </button>
-    </div>
+  let html = `<div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
+    <span>⚖️ Portions Guide</span>
+    <button class="btn-icon" onclick="closeModal()" style="font-size:18px;font-weight:700;color:var(--text-muted)">✕</button>
   </div>`;
 
   if (rows.length === 0) {
-    html += `<div style="padding:40px 20px;text-align:center;color:var(--text-muted);font-size:13px">No entries yet.</div>`;
+    html += `<div style="padding:20px 0;text-align:center;color:var(--text-muted);font-size:13px">No entries yet.</div>`;
   } else {
-    html += `<div style="padding:0 14px">
-      <div class="card" style="overflow:auto">
-        <table class="guide-table">
-          <thead>
-            <tr>
-              ${servingEditMode ? '<th style="width:38px"></th>' : ''}
-              <th>Dish</th>
-              <th>Meal</th>
-              <th>Qty / Unit</th>
-              <th>Notes</th>
-              ${servingEditMode ? '<th style="width:38px"></th>' : ''}
-            </tr>
-          </thead>
-          <tbody>`;
+    html += `<div style="overflow-x:auto;margin-bottom:12px">
+      <table class="guide-table" style="width:100%">
+        <thead>
+          <tr>
+            <th>Dish</th>
+            <th>Meal</th>
+            <th>Qty / Unit</th>
+            <th>Notes</th>
+            <th style="width:38px"></th>
+          </tr>
+        </thead>
+        <tbody>`;
 
     rows.forEach(r => {
       const mealClass = { Lunch: 'meal-lunch', Dinner: 'meal-dinner', Snack: 'meal-snack', Breakfast: 'meal-breakfast' }[r.mealType] || 'meal-lunch';
       html += `<tr>
-        ${servingEditMode ? `<td>${delBtn('serving', r.id)}</td>` : ''}
         <td style="font-weight:600">${escHtml(r.dish)}</td>
         <td><span class="meal-badge ${mealClass}">${escHtml(r.mealType)}</span></td>
         <td style="max-width:90px;word-break:break-word">${r.qty} ${escHtml((r.unit||'').toLowerCase())}</td>
         <td style="color:var(--text-muted);font-size:12px">${escHtml(r.notes || '')}</td>
-        ${servingEditMode ? `<td><button class="btn-icon" onclick="openServingModal(${r.id})">✏️</button></td>` : ''}
+        <td><button class="btn-icon" onclick="openServingModal(${r.id})">✏️</button></td>
       </tr>`;
     });
 
-    html += `</tbody></table></div></div>`;
+    html += `</tbody></table></div>`;
   }
 
-  html += `<div style="padding:10px 14px 14px;display:flex;justify-content:flex-end">
+  html += `<div style="display:flex;justify-content:flex-end">
     <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openServingModal()">+ Add Entry</button>
   </div>`;
 
   return html;
 }
 
-function toggleServingEdit() {
-  servingEditMode = !servingEditMode;
+function openPortionsModal() {
   confirmDel = null;
-  render();
+  servingDeleteId = null;
+  openModal(renderServingModal());
 }
 
 function openServingModal(id) {
   const r = id ? db.servingGuide.find(x => x.id === id) : null;
   const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
+  const deleteFooter = id
+    ? (servingDeleteId === id
+        ? `<div style="display:flex;align-items:center;gap:8px">
+             <span style="font-size:13px;color:var(--red)">Delete entry?</span>
+             <button class="btn-danger" onclick="confirmServingDelete(${id})">✓ Yes</button>
+             <button class="btn-cancel" onclick="cancelServingDelete(${id})">✗ No</button>
+           </div>`
+        : `<button class="btn-icon" onclick="startServingDelete(${id})" title="Delete">🗑️</button>`)
+    : '';
+
   openModal(`
-    <div class="modal-title">${r ? 'Edit Entry' : 'Add Entry'}</div>
+    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>${r ? 'Edit Entry' : 'Add Entry'}</span>
+      <button class="btn-icon" onclick="openPortionsModal()" style="font-size:18px;font-weight:700;color:var(--text-muted)">✕</button>
+    </div>
     <div class="form-group">
       <label class="form-label">Dish *</label>
       <input class="form-input" id="sg-dish" value="${escHtml(r?.dish || '')}" placeholder="e.g. Pasta">
@@ -2241,13 +2319,30 @@ function openServingModal(id) {
       <input class="form-input" id="sg-notes" value="${escHtml(r?.notes || '')}" placeholder="e.g. Cooks to 186g">
     </div>
     <div class="modal-footer">
-      <div></div>
+      <div>${deleteFooter}</div>
       <div class="modal-footer-right">
-        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
         <button class="btn-primary" onclick="saveServing(${id || 'null'})">Save</button>
       </div>
     </div>
   `);
+}
+
+function startServingDelete(id) {
+  servingDeleteId = Number(id);
+  openServingModal(id);
+}
+
+function cancelServingDelete(id) {
+  servingDeleteId = null;
+  openServingModal(id);
+}
+
+function confirmServingDelete(id) {
+  servingDeleteId = null;
+  id = Number(id);
+  db.servingGuide = db.servingGuide.filter(x => x.id !== id);
+  saveData();
+  openModal(renderServingModal());
 }
 
 function saveServing(id) {
@@ -2269,8 +2364,7 @@ function saveServing(id) {
     db.servingGuide.push(obj);
   }
   saveData();
-  closeModal();
-  render();
+  openModal(renderServingModal());
 }
 
 // ═══════════════════════════════════════════════════
