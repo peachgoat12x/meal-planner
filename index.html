@@ -680,6 +680,22 @@
     align-items: center;
   }
   .search-wrap .search-input { padding-left: 34px; }
+
+  /* ── UTILITY CLASSES (extracted from inline styles) ── */
+  /* SVG icon containers — suppresses inline-block gap beneath SVGs */
+  .ico { line-height: 0; }
+  /* Close/back buttons — muted colour + SVG gap suppression */
+  .ico-muted { color: var(--text-muted); line-height: 0; }
+  /* Confirm/cancel button pairs in delete flows */
+  .row-actions { display: flex; align-items: center; gap: 4px; }
+  /* Tappable item names with subtle underline */
+  .name-link { cursor: pointer; text-decoration: underline; text-decoration-color: rgba(0,0,0,0.2); }
+  /* Card inside a tab list — adds horizontal + bottom margin */
+  .tab-list-card { margin: 0 14px 14px; }
+  /* Empty list / no results messages */
+  .empty-state { padding: 40px; text-align: center; color: var(--text-muted); font-size: 14px; }
+  /* Small primary action buttons (Add Dish, Add Meal, etc.) */
+  .btn-primary-sm { padding: 7px 14px; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -698,9 +714,9 @@
       </button>
     </div>
     <div id="week-strip">
-      <button class="week-arrow" onclick="shiftWeek(-1)" style="line-height:0"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4L6 9L11 14"/></svg></button>
+      <button class="week-arrow ico" onclick="shiftWeek(-1)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4L6 9L11 14"/></svg></button>
       <div id="week-dates"></div>
-      <button class="week-arrow" onclick="shiftWeek(1)" style="line-height:0"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L12 9L7 14"/></svg></button>
+      <button class="week-arrow ico" onclick="shiftWeek(1)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L12 9L7 14"/></svg></button>
     </div>
   </div>
 
@@ -709,11 +725,11 @@
 
   <!-- TAB BAR -->
   <div id="tab-bar">
-    <button class="tab-btn active" onclick="switchTab(0)"><span class="tab-icon" style="line-height:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3L21 10.5V20H15.5V15H8.5V20H3V10.5Z"/></svg></span>Home</button>
-    <button class="tab-btn" onclick="switchTab(1)"><span class="tab-icon" style="line-height:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6C10 5 7 5 4 6V19C7 18 10 18 12 19C14 18 17 18 20 19V6C17 5 14 5 12 6Z"/><line x1="12" y1="6" x2="12" y2="19"/></svg></span>Dishes</button>
-    <button class="tab-btn" onclick="switchTab(2)"><span class="tab-icon" style="line-height:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12H19"/><path d="M6 12C6 16 8.5 18 12 18C15.5 18 18 16 18 12"/><path d="M9 9C9 8 9.5 7 9.5 6"/><path d="M12 8C12 7 12.5 6 12.5 5"/><path d="M15 9C15 8 15.5 7 15.5 6"/></svg></span>Ready</button>
-    <button class="tab-btn" onclick="switchTab(3)"><span class="tab-icon" style="line-height:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="5" y1="10" x2="19" y2="10"/><line x1="10" y1="6" x2="10" y2="8"/><line x1="10" y1="13" x2="10" y2="16"/></svg></span>Pantry</button>
-    <button class="tab-btn" onclick="switchTab(4)"><span class="tab-icon" style="line-height:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4H6L8.5 15H17L19.5 7H7"/><circle cx="10" cy="18.5" r="1.5"/><circle cx="16.5" cy="18.5" r="1.5"/></svg></span>List</button>
+    <button class="tab-btn active" onclick="switchTab(0)"><span class="tab-icon ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3L21 10.5V20H15.5V15H8.5V20H3V10.5Z"/></svg></span>Home</button>
+    <button class="tab-btn" onclick="switchTab(1)"><span class="tab-icon ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6C10 5 7 5 4 6V19C7 18 10 18 12 19C14 18 17 18 20 19V6C17 5 14 5 12 6Z"/><line x1="12" y1="6" x2="12" y2="19"/></svg></span>Dishes</button>
+    <button class="tab-btn" onclick="switchTab(2)"><span class="tab-icon ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12H19"/><path d="M6 12C6 16 8.5 18 12 18C15.5 18 18 16 18 12"/><path d="M9 9C9 8 9.5 7 9.5 6"/><path d="M12 8C12 7 12.5 6 12.5 5"/><path d="M15 9C15 8 15.5 7 15.5 6"/></svg></span>Ready</button>
+    <button class="tab-btn" onclick="switchTab(3)"><span class="tab-icon ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="5" y1="10" x2="19" y2="10"/><line x1="10" y1="6" x2="10" y2="8"/><line x1="10" y1="13" x2="10" y2="16"/></svg></span>Pantry</button>
+    <button class="tab-btn" onclick="switchTab(4)"><span class="tab-icon ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4H6L8.5 15H17L19.5 7H7"/><circle cx="10" cy="18.5" r="1.5"/><circle cx="16.5" cy="18.5" r="1.5"/></svg></span>List</button>
   </div>
 
   <!-- MODAL OVERLAY -->
@@ -1064,11 +1080,11 @@ function expiryBadge(expiry) {
 function delBtn(scope, id) {
   if (confirmDel && confirmDel.scope === scope && confirmDel.id === id) {
     return `<div class="del-confirm">
-      <button class="btn-danger" onclick="doDel('${scope}',${id})" style="display:flex;align-items:center;gap:4px">${ICO_TICK}</button>
-      <button class="btn-cancel" onclick="cancelDel()" style="display:flex;align-items:center;gap:4px">${ICO_CROSS}</button>
+      <button class="btn-danger row-actions" onclick="doDel('${scope}',${id})">${ICO_TICK}</button>
+      <button class="btn-cancel row-actions" onclick="cancelDel()">${ICO_CROSS}</button>
     </div>`;
   }
-  return `<button class="btn-icon" onclick="startDel('${scope}',${id})" title="Delete" style="line-height:0">${ICO_TRASH}</button>`;
+  return `<button class="btn-icon ico" onclick="startDel('${scope}',${id})" title="Delete">${ICO_TRASH}</button>`;
 }
 
 function startDel(scope, id) {
@@ -1248,7 +1264,7 @@ function renderHome() {
     return d <= 14;
   });
 
-  let html = '<div class="section" style="padding-top:14px">';
+  let html = '<div class="section">';
 
   // Expiry banner
   if (expiringItems.length > 0) {
@@ -1273,7 +1289,7 @@ function renderHome() {
       const did = m.dishId || dishIdByName(m.name);
       html += `<div class="item-row">
         <div class="item-main">
-          ${did ? `<div class="item-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${did})">${nameDisplay}</div>` : `<div class="item-name">${nameDisplay}</div>`}
+          ${did ? `<div class="item-name name-link" onclick="openDishDetail(${did})">${nameDisplay}</div>` : `<div class="item-name">${nameDisplay}</div>`}
           <div class="item-sub">${m.servings} servings · ${m.eatBy ? 'Eat by ' + fmtDate(m.eatBy) : ''}</div>
         </div>
         ${m.category ? catBadge(m.category) : ''}
@@ -1334,7 +1350,7 @@ function renderPantry() {
     if (pantryCatFilter !== 'All') items = items.filter(i => i.category === pantryCatFilter);
   }
 
-  let html = `<div class="section" style="padding-top:14px">
+  let html = `<div class="section">
     <div class="search-wrap">
       <span class="search-icon">${ICO_SEARCH}</span>
       <input class="search-input" type="search" placeholder="Search ingredients…" value="${escHtml(pantrySearch)}" oninput="pantrySearch=this.value;confirmDel=null;render()">
@@ -1364,13 +1380,13 @@ function renderPantry() {
 
   html += `<div style="padding:0 14px 6px;display:flex;justify-content:space-between;align-items:center">
     <span style="font-size:12px;color:var(--text-muted)">${items.length} item${items.length!==1?'s':''}</span>
-    <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openIngModal()">+ Add Item</button>
+    <button class="btn-primary btn-primary-sm" onclick="openIngModal()">+ Add Item</button>
   </div>`;
 
   if (items.length === 0) {
-    html += '<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:14px">No items found</div>';
+    html += '<div class="empty-state">No items found</div>';
   } else {
-    html += '<div class="card" style="margin:0 14px 14px">';
+    html += '<div class="card tab-list-card">';
     items.forEach(item => {
       html += `<div class="item-row">
         ${delBtn('ing', item.id)}
@@ -1383,7 +1399,7 @@ function renderPantry() {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           ${locBadge(item.loc)}
-          <button class="btn-icon" onclick="openIngModal(${item.id})" style="line-height:0">${ICO_EDIT}</button>
+          <button class="btn-icon ico" onclick="openIngModal(${item.id})">${ICO_EDIT}</button>
         </div>
       </div>`;
     });
@@ -1496,7 +1512,7 @@ function renderDishes() {
 
   const totalServings = selectedDishes.reduce((sum, d) => sum + getDishServings(d.id, viewWeek), 0);
 
-  let html = `<div class="section" style="padding-top:14px">
+  let html = `<div class="section">
     <div class="context-banner" style="display:flex;align-items:center;gap:6px">${ICO_CAL} Selecting for: Week of ${fmtDateFull(viewWeek)} · ${hasSelected ? selectedDishes.length + ' dish' + (selectedDishes.length!==1?'es':'') + ' selected' : 'No dishes selected'}</div>
   </div>`;
 
@@ -1504,7 +1520,7 @@ function renderDishes() {
   html += `<div class="this-week-panel" style="margin:0 14px 12px">
     <div class="this-week-header${thisWeekCollapsed?' collapsed':''}" onclick="toggleThisWeek()">
       <span style="display:flex;align-items:center;gap:6px">${ICO_PLAN} This Week</span>
-      <span style="line-height:0">${thisWeekCollapsed ? ICO_CHEVDN : ICO_CHEVUP}</span>
+      <span class="ico">${thisWeekCollapsed ? ICO_CHEVDN : ICO_CHEVUP}</span>
     </div>`;
 
   if (!thisWeekCollapsed) {
@@ -1515,7 +1531,7 @@ function renderDishes() {
       selectedDishes.forEach(dish => {
         const sv = getDishServings(dish.id, viewWeek);
         html += `<div class="serving-row">
-          <span style="font-size:14px;font-weight:600;flex:1;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openDishDetail(${dish.id})">${escHtml(dish.name)}</span>
+          <span class="name-link" style="font-size:14px;font-weight:600;flex:1" onclick="openDishDetail(${dish.id})">${escHtml(dish.name)}</span>
           ${catBadge(dish.category)}
           <div class="serving-counter">
             <button class="counter-btn" onclick="adjServings(${dish.id},-1)">−</button>
@@ -1553,18 +1569,18 @@ function renderDishes() {
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <span style="font-size:12px;color:var(--text-muted)">${dishes.length} dish${dishes.length!==1?'es':''}</span>
-      <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openDishModal()">+ Add Dish</button>
+      <button class="btn-primary btn-primary-sm" onclick="openDishModal()">+ Add Dish</button>
     </div>
   </div>`;
 
   if (dishes.length === 0) {
-    html += '<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:14px">No dishes found</div>';
+    html += '<div class="empty-state">No dishes found</div>';
   } else {
-    html += '<div class="card" style="margin:0 14px 14px">';
+    html += '<div class="card tab-list-card">';
     dishes.forEach(dish => {
       const selected = isDishSelected(dish.id, viewWeek);
       html += `<div class="dish-row${selected?' selected':''}" onclick="openDishDetail(${dish.id})">
-        <div class="dish-check" onclick="toggleDish(${dish.id});event.stopPropagation()" style="cursor:pointer;line-height:0">${selected ? ICO_TICK : ''}</div>
+        <div class="dish-check ico" onclick="toggleDish(${dish.id});event.stopPropagation()" style="cursor:pointer">${selected ? ICO_TICK : ''}</div>
         <div class="dish-info">
           <div class="dish-name">${escHtml(dish.name)}</div>
           <div class="dish-sub">${dish.ingredients.length} ingredient${dish.ingredients.length!==1?'s':''}</div>
@@ -1688,8 +1704,8 @@ function openDishDetail(id) {
     <div class="recipe-topbar">
       <div class="modal-title" style="margin-bottom:0">${escHtml(dish.name)} ${catBadge(dish.category)}</div>
       <div class="recipe-topbar-actions">
-        <button class="btn-icon" onclick="openDishModal(${id})" title="Edit" style="line-height:0">${ICO_EDIT}</button>
-        <button class="btn-icon" onclick="closeModal()" title="Close" style="color:var(--text-muted);line-height:0">${ICO_CLOSE}</button>
+        <button class="btn-icon ico" onclick="openDishModal(${id})" title="Edit">${ICO_EDIT}</button>
+        <button class="btn-icon ico-muted" onclick="closeModal()" title="Close">${ICO_CLOSE}</button>
       </div>
     </div>
     <div class="recipe-body">
@@ -1742,16 +1758,16 @@ function openDishModal(id) {
   const deleteFooter = dishDeleteConfirm
     ? `<div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:13px;color:var(--red)">Delete dish?</span>
-        <button class="btn-danger" onclick="confirmDeleteDish(${id})" style="display:flex;align-items:center;gap:4px">${ICO_TICK} Yes</button>
-        <button class="btn-cancel" onclick="cancelDishDelete(${id})" style="display:flex;align-items:center;gap:4px">${ICO_CROSS} No</button>
+        <button class="btn-danger row-actions" onclick="confirmDeleteDish(${id})">${ICO_TICK} Yes</button>
+        <button class="btn-cancel row-actions" onclick="cancelDishDelete(${id})">${ICO_CROSS} No</button>
        </div>`
-    : `<button class="btn-icon" onclick="startDishDelete(${id})" title="Delete" style="line-height:0">${ICO_TRASH}</button>`;
+    : `<button class="btn-icon ico" onclick="startDishDelete(${id})" title="Delete">${ICO_TRASH}</button>`;
 
   openModal(`
     <div class="recipe-topbar">
       <div class="modal-title" style="margin-bottom:0">${topTitle}</div>
       <div class="recipe-topbar-actions">
-        <button class="btn-icon" onclick="${cancelAction}" title="Cancel" style="color:var(--text-muted);line-height:0">${ICO_CLOSE}</button>
+        <button class="btn-icon ico-muted" onclick="${cancelAction}" title="Cancel">${ICO_CLOSE}</button>
       </div>
     </div>
     <div class="recipe-body">
@@ -1875,7 +1891,7 @@ function renderReady() {
   const carbsCount = meals.filter(m => m.category === 'Carbs').length;
   const fullMealCount = meals.filter(m => m.category === 'Full Meal').length;
 
-  let html = `<div class="section" style="padding-top:14px">
+  let html = `<div class="section">
     <div class="stats-bar">
       <div class="stat-cell"><div class="stat-val" style="color:${proteinCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${proteinCount}</div><div class="stat-lbl">Protein</div></div>
       <div class="stat-cell"><div class="stat-val" style="color:${fibreCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${fibreCount}</div><div class="stat-lbl">Fibre</div></div>
@@ -1883,7 +1899,7 @@ function renderReady() {
       <div class="stat-cell"><div class="stat-val" style="color:${fullMealCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${fullMealCount}</div><div class="stat-lbl">Full Meal</div></div>
     </div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-      <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openReadyModal()">+ Add Meal</button>
+      <button class="btn-primary btn-primary-sm" onclick="openReadyModal()">+ Add Meal</button>
     </div>
   </div>`;
 
@@ -1906,11 +1922,11 @@ function renderReady() {
       html += `<div class="ready-card">
         <div class="ready-card-top">
           <div class="item-main">
-            <div class="item-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,0,0,0.2)" onclick="openReadyDetail(${m.id})">${nameDisplay}</div>
+            <div class="item-name name-link" onclick="openReadyDetail(${m.id})">${nameDisplay}</div>
           </div>
           <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
             ${delBtn('ready', m.id)}
-            <button class="btn-icon" onclick="openReadyModal(${m.id})" style="line-height:0">${ICO_EDIT}</button>
+            <button class="btn-icon ico" onclick="openReadyModal(${m.id})">${ICO_EDIT}</button>
           </div>
         </div>
         <div class="ready-card-body">
@@ -1960,7 +1976,7 @@ function openReadyDetail(id) {
   openModal(`
     <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
       <span>${m.isLeftover ? '<span class="badge badge-orange" style="margin-right:6px;vertical-align:middle">* leftover</span>' : ''}${escHtml(m.name)}</span>
-      <button class="btn-icon" onclick="closeModal()" style="color:var(--text-muted);line-height:0">${ICO_CLOSE}</button>
+      <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
     </div>
     <div style="margin-bottom:16px">
       ${row('Week to eat', fmtDateFull(m.week))}
@@ -1975,7 +1991,7 @@ function openReadyDetail(id) {
       ${row('Note', m.note ? escHtml(m.note) : '-')}
     </div>
     <div style="display:flex;justify-content:flex-end">
-      <button class="btn-primary" onclick="openReadyModal(${id})" style="display:flex;align-items:center;gap:6px">${ICO_EDIT} Edit</button>
+      <button class="btn-primary row-actions" onclick="openReadyModal(${id})">${ICO_EDIT} Edit</button>
     </div>
   `);
 }
@@ -2126,7 +2142,7 @@ function openReadyModal(id) {
   ];
 
   openModal(`
-    <div class="modal-title" id="rm-modal-title" style="display:flex;justify-content:space-between;align-items:center"><span>${m ? 'Edit Ready Meal' : 'Add Ready Meal'}${m?.isLeftover ? '<span class="badge badge-orange" style="margin-left:8px;vertical-align:middle">* leftover</span>' : ''}</span><button class="btn-icon" onclick="closeModal()" style="color:var(--text-muted);line-height:0">${ICO_CLOSE}</button></div>
+    <div class="modal-title" id="rm-modal-title" style="display:flex;justify-content:space-between;align-items:center"><span>${m ? 'Edit Ready Meal' : 'Add Ready Meal'}${m?.isLeftover ? '<span class="badge badge-orange" style="margin-left:8px;vertical-align:middle">* leftover</span>' : ''}</span><button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button></div>
     <div class="form-group">
       <label class="form-label">Dish Name *</label>
       <input class="form-input" id="rm-name" value="${escHtml(m?.name || '')}" placeholder="e.g. Braised Pork Belly"
@@ -2243,7 +2259,7 @@ function renderServingModal() {
 
   let html = `<div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
     <span style="display:flex;align-items:center;gap:7px">${ICO_SCALE} Portions Guide</span>
-    <button class="btn-icon" onclick="closeModal()" style="color:var(--text-muted);line-height:0">${ICO_CLOSE}</button>
+    <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
   </div>`;
 
   if (rows.length === 0) {
@@ -2269,7 +2285,7 @@ function renderServingModal() {
         <td><span class="meal-badge ${mealClass}">${escHtml(r.mealType)}</span></td>
         <td style="max-width:90px;word-break:break-word">${r.qty} ${escHtml((r.unit||'').toLowerCase())}</td>
         <td style="color:var(--text-muted);font-size:12px">${escHtml(r.notes || '')}</td>
-        <td><button class="btn-icon" onclick="openServingModal(${r.id})" style="line-height:0">${ICO_EDIT}</button></td>
+        <td><button class="btn-icon ico" onclick="openServingModal(${r.id})">${ICO_EDIT}</button></td>
       </tr>`;
     });
 
@@ -2277,7 +2293,7 @@ function renderServingModal() {
   }
 
   html += `<div style="display:flex;justify-content:flex-end">
-    <button class="btn-primary" style="padding:7px 14px;font-size:13px" onclick="openServingModal()">+ Add Entry</button>
+    <button class="btn-primary btn-primary-sm" onclick="openServingModal()">+ Add Entry</button>
   </div>`;
 
   return html;
@@ -2297,16 +2313,16 @@ function openServingModal(id) {
     ? (servingDeleteId === id
         ? `<div style="display:flex;align-items:center;gap:8px">
              <span style="font-size:13px;color:var(--red)">Delete entry?</span>
-             <button class="btn-danger" onclick="confirmServingDelete(${id})" style="display:flex;align-items:center;gap:4px">${ICO_TICK} Yes</button>
-             <button class="btn-cancel" onclick="cancelServingDelete(${id})" style="display:flex;align-items:center;gap:4px">${ICO_CROSS} No</button>
+             <button class="btn-danger row-actions" onclick="confirmServingDelete(${id})">${ICO_TICK} Yes</button>
+             <button class="btn-cancel row-actions" onclick="cancelServingDelete(${id})">${ICO_CROSS} No</button>
            </div>`
-        : `<button class="btn-icon" onclick="startServingDelete(${id})" title="Delete" style="line-height:0">${ICO_TRASH}</button>`)
+        : `<button class="btn-icon ico" onclick="startServingDelete(${id})" title="Delete">${ICO_TRASH}</button>`)
     : '';
 
   openModal(`
     <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
       <span>${r ? 'Edit Entry' : 'Add Entry'}</span>
-      <button class="btn-icon" onclick="openPortionsModal()" style="color:var(--text-muted);line-height:0">${ICO_CLOSE}</button>
+      <button class="btn-icon ico-muted" onclick="openPortionsModal()">${ICO_CLOSE}</button>
     </div>
     <div class="form-group">
       <label class="form-label">Dish *</label>
@@ -2393,12 +2409,12 @@ function renderShop() {
   const pct = total > 0 ? Math.round((ticked / total) * 100) : 0;
   const hasTicked = ticked > 0;
 
-  let html = `<div class="section" style="padding-top:14px">
+  let html = `<div class="section">
     <div class="shop-header">
       <span class="shop-title" style="display:flex;align-items:center;gap:7px">${ICO_CART} Grocery List</span>
       <div class="shop-header-btns">
         <button class="btn-secondary" style="padding:6px 10px;font-size:12px;display:flex;align-items:center;gap:5px" onclick="copyShopList()" title="Copy list">${ICO_COPY} Copy</button>
-        ${hasTicked ? `<button class="btn-icon" onclick="clearTicked()" title="Delete ticked items" style="line-height:0">${ICO_TRASH}</button>` : ''}
+        ${hasTicked ? `<button class="btn-icon ico" onclick="clearTicked()" title="Delete ticked items">${ICO_TRASH}</button>` : ''}
         <button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="openShopExtraModal()">+ Item</button>
       </div>
     </div>`;
