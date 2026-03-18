@@ -2064,7 +2064,7 @@ function renderReady() {
 
 // Read-only detail view for a ready meal. Opens as a bottom sheet modal.
 // Shows all metadata in a clean label/value table layout.
-// Edit button replaces modal content with openReadyModal(id).
+// Edit button is in the topbar (consistent with dish detail and pantry peek).
 // ✕ (SVG close icon) closes the modal entirely.
 function openReadyDetail(id) {
   const m = db.readyMeals.find(x => x.id === id);
@@ -2085,9 +2085,12 @@ function openReadyDetail(id) {
   openModal(`
     <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
       <span>${m.isLeftover ? '<span class="badge badge-orange" style="margin-right:6px;vertical-align:middle">* leftover</span>' : ''}${escHtml(m.name)}</span>
-      <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-icon ico" onclick="openReadyModal(${id})" title="Edit">${ICO_EDIT}</button>
+        <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
+      </div>
     </div>
-    <div style="margin-bottom:16px">
+    <div style="margin-bottom:16px;min-height:380px">
       ${row('Week to eat', fmtDateFull(m.week))}
       ${row('Category', m.category ? `<span class="badge badge-${({Protein:'protein',Fibre:'fibre',Carbs:'carbs','Full Meal':'fullmeal'}[m.category]||'grey')}">${m.category}</span>` : '')}
       ${row('Location', `<span class="badge ${({Fridge:'badge-fridge',Freezer:'badge-freezer',Pantry:'badge-pantry'}[m.loc]||'badge-grey')}">${m.loc}</span>`)}
@@ -2098,9 +2101,6 @@ function openReadyDetail(id) {
         <span style="font-size:14px;${eatByStyle}">${fmtDateFull(m.eatBy)}</span>
       </div>` : ''}
       ${row('Note', m.note ? escHtml(m.note) : '-')}
-    </div>
-    <div style="display:flex;justify-content:flex-end">
-      <button class="btn-primary row-actions" onclick="openReadyModal(${id})">${ICO_EDIT} Edit</button>
     </div>
   `);
 }
