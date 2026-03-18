@@ -724,7 +724,22 @@
     display: flex;
     align-items: center;
   }
-  .search-wrap .search-input { padding-left: 34px; }
+  .search-wrap .search-input { padding-left: 34px; padding-right: 28px; }
+  .search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 2px;
+    line-height: 0;
+    display: flex;
+    align-items: center;
+  }
+  .search-clear:active { color: var(--text); }
 
   /* ── UTILITY CLASSES (extracted from inline styles) ── */
   /* SVG icon containers — suppresses inline-block gap beneath SVGs */
@@ -883,6 +898,7 @@ let pantrySearch = '';
 let pantryLocFilter = 'All';
 let pantryCatFilter = 'All';
 let pantryExpFilter = false;       // true when expiry filter chip is active
+let dishSearch = '';
 let dishCatFilter = 'All';
 let thisWeekCollapsed = false;     // whether the This Week panel in Dishes tab is collapsed
 let thisWeekUserSet = false;       // true if user has manually toggled the panel (prevents auto-collapse)
@@ -1376,6 +1392,8 @@ function renderContent() {
   // Populate the pantry item list (kept separate so search oninput can
   // update it without recreating the input element and closing the keyboard)
   if (activeTab === 3) renderPantryList();
+  // Populate the dish list (kept separate for the same reason as pantry)
+  if (activeTab === 1) renderDishList();
 }
 
 // ═══════════════════════════════════════════════════
@@ -1418,6 +1436,7 @@ function switchTab(idx) {
   activeTab = idx;
   confirmDel = null;
   dishReplaceConfirm = false;
+  dishSearch = '';
   rmIsLeftover = false;
   rmSuggestions = [];
   if (idx !== 1) thisWeekUserSet = false;
@@ -1564,7 +1583,8 @@ function renderPantry() {
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
       <div class="search-wrap" style="flex:1;margin-bottom:0">
         <span class="search-icon">${ICO_SEARCH}</span>
-        <input class="search-input" type="search" placeholder="Search ingredients…" value="${escHtml(pantrySearch)}" oninput="pantrySearch=this.value;confirmDel=null;renderPantryList()">
+        <input class="search-input" type="text" placeholder="Search ingredients…" value="${escHtml(pantrySearch)}" oninput="pantrySearch=this.value;confirmDel=null;renderPantryList()">
+        ${pantrySearch ? `<button class="search-clear" onclick="pantrySearch='';confirmDel=null;renderPantryList()" title="Clear search">${ICO_CROSS}</button>` : ''}
       </div>
       <button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="openIngModal()">+ Item</button>
     </div>
@@ -1754,9 +1774,6 @@ function renderDishes() {
   const wd = getWeekData(viewWeek);
   const cats = ['All','Protein','Fibre','Carbs','Full Meal'];
 
-  let dishes = [...db.dishes];
-  if (dishCatFilter !== 'All') dishes = dishes.filter(d => d.category === dishCatFilter);
-
   const selectedDishes = db.dishes.filter(d => wd.selectedDishes.includes(d.id));
   const hasSelected = selectedDishes.length > 0;
 
@@ -1821,15 +1838,43 @@ function renderDishes() {
   }
   html += `</div>`;
 
-  // Dish list
+  // Dish list — category chips, search bar, Add button, and list placeholder.
+  // The list itself is rendered by renderDishList() to keep the search keyboard alive.
   html += `<div style="padding:0 14px">
     <div class="filter-chips" style="margin-bottom:10px">
       ${cats.map(c=>`<button class="chip${dishCatFilter===c?' active':''}" onclick="setDishCatFilter('${c}')">${c}</button>`).join('')}
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="font-size:12px;color:var(--text-muted)">${dishes.length} dish${dishes.length!==1?'es':''}</span>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <div class="search-wrap" style="flex:1;margin-bottom:0">
+        <span class="search-icon">${ICO_SEARCH}</span>
+        <input class="search-input" type="text" placeholder="Search dishes…" value="${escHtml(dishSearch)}" oninput="dishSearch=this.value;confirmDel=null;renderDishList()">
+        ${dishSearch ? `<button class="search-clear" onclick="dishSearch='';confirmDel=null;renderDishList()" title="Clear search">${ICO_CROSS}</button>` : ''}
+      </div>
       <button class="btn-primary btn-primary-sm" onclick="openDishModal()">+ Add Dish</button>
     </div>
+  </div>
+  <div id="dish-list"></div>`;
+
+  return html;
+}
+
+// Renders the filtered dish list into #dish-list.
+// Called from renderContent() and directly from search oninput and setDishCatFilter()
+// so the search input is never recreated mid-keystroke — keeping the keyboard alive on mobile.
+// Dish count is shown here since it reflects the filtered results.
+function renderDishList() {
+  const container = document.getElementById('dish-list');
+  if (!container) return;
+
+  let dishes = [...db.dishes];
+  if (dishCatFilter !== 'All') dishes = dishes.filter(d => d.category === dishCatFilter);
+  if (dishSearch.trim()) {
+    const q = dishSearch.toLowerCase();
+    dishes = dishes.filter(d => d.name.toLowerCase().includes(q));
+  }
+
+  let html = `<div style="padding:0 14px 4px">
+    <span style="font-size:12px;color:var(--text-muted)">${dishes.length} dish${dishes.length!==1?'es':''}</span>
   </div>`;
 
   if (dishes.length === 0) {
@@ -1850,10 +1895,10 @@ function renderDishes() {
     html += '</div>';
   }
 
-  return html;
+  container.innerHTML = html;
 }
 
-function setDishCatFilter(c) { dishCatFilter = c; confirmDel = null; render(); }
+function setDishCatFilter(c) { dishCatFilter = c; confirmDel = null; renderDishList(); }
 function toggleThisWeek() {
   thisWeekCollapsed = !thisWeekCollapsed;
   thisWeekUserSet = true;
