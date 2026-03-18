@@ -292,7 +292,7 @@
     background: var(--amber-bg);
     border: 1.5px solid var(--amber-border);
     border-radius: 8px;
-    padding: 10px 14px;
+    padding: 8px 12px;
     font-size: 13px;
     font-weight: 600;
     color: var(--amber-dark);
@@ -2090,7 +2090,7 @@ function openReadyDetail(id) {
         <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
       </div>
     </div>
-    <div style="margin-bottom:16px;min-height:380px">
+    <div style="margin-bottom:16px;min-height:480px">
       ${row('Week to eat', fmtDateFull(m.week))}
       ${row('Category', m.category ? `<span class="badge badge-${({Protein:'protein',Fibre:'fibre',Carbs:'carbs','Full Meal':'fullmeal'}[m.category]||'grey')}">${m.category}</span>` : '')}
       ${row('Location', `<span class="badge ${({Fridge:'badge-fridge',Freezer:'badge-freezer',Pantry:'badge-pantry'}[m.loc]||'badge-grey')}">${m.loc}</span>`)}
