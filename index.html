@@ -1013,7 +1013,7 @@ if (db.customUnits && db.customUnits.length > 0) {
 }
 
 function unitComboHtml(id, currentValue) {
-  return `<input class="form-input unit-field" id="${id}" value="${escHtml(currentValue||'')}" placeholder="Unit" autocomplete="off" onfocus="showUnitPills(this.id)" oninput="hideUnitPills()">`;
+  return `<input class="form-input unit-field" id="${id}" value="${escHtml(currentValue||'')}" placeholder="Unit" autocomplete="off" onfocus="showUnitPills(this.id)" onclick="showUnitPills(this.id)" oninput="hideUnitPills()">`;
 }
 
 // Unit pill picker — floating panel approach.
@@ -1035,6 +1035,9 @@ function showUnitPills(inputId, onSelect) {
   const panel = document.getElementById('unit-pills-container');
   if (!input || !panel) return;
 
+  // Reset panel first — handles double-calls from onfocus+onclick and switching between inputs
+  hideUnitPills();
+
   // Populate panel with standard units (custom units no longer accumulated)
   panel.innerHTML = '';
   STANDARD_UNITS.forEach(u => {
@@ -1054,12 +1057,17 @@ function showUnitPills(inputId, onSelect) {
     panel.appendChild(pill);
   });
 
-  // Position panel below input, flipping above if insufficient space below
+  // Anchor panel to the left edge of the #app container for a consistent position
+  // regardless of where the unit input sits on screen (left column, right column, etc).
+  // Vertical position follows the focused input so the panel appears just below it.
+  const appEl = document.getElementById('app');
+  const appRect = appEl ? appEl.getBoundingClientRect() : { left: 14, width: 320 };
   const rect = input.getBoundingClientRect();
-  const panelHeight = 180; // max-height from CSS
+  const panelWidth = Math.min(appRect.width - 28, 320);
+  const panelHeight = 180;
   const spaceBelow = window.innerHeight - rect.bottom;
-  panel.style.left = rect.left + 'px';
-  panel.style.width = Math.min(rect.width + 60, 320) + 'px';
+  panel.style.left = (appRect.left + 14) + 'px';
+  panel.style.width = panelWidth + 'px';
   if (spaceBelow >= panelHeight || spaceBelow >= 120) {
     panel.style.top = (rect.bottom + 4) + 'px';
     panel.style.bottom = 'auto';
@@ -2673,7 +2681,7 @@ function renderShop() {
             <input class="shop-tobuy-input" type="number" step="0.01" value="${item.toBuyQty ?? item.needed}" oninput="updateToBuy(${item.id},this.value)" onchange="updateToBuy(${item.id},this.value)">
             <!-- Unit input uses showUnitPills with a callback so pill selection calls
                  updateToBuyUnit() directly rather than just setting input.value -->
-            <input class="shop-tobuy-unit-input" id="shop-unit-${item.id}" type="text" value="${escHtml((item.toBuyUnit ?? item.unit ?? '').toLowerCase())}" onchange="updateToBuyUnit(${item.id},this.value)" onfocus="showUnitPills('shop-unit-${item.id}', function(u){updateToBuyUnit(${item.id},u)})" oninput="hideUnitPills()">
+            <input class="shop-tobuy-unit-input" id="shop-unit-${item.id}" type="text" value="${escHtml((item.toBuyUnit ?? item.unit ?? '').toLowerCase())}" onchange="updateToBuyUnit(${item.id},this.value)" onfocus="showUnitPills('shop-unit-${item.id}', function(u){updateToBuyUnit(${item.id},u)})" onclick="showUnitPills('shop-unit-${item.id}', function(u){updateToBuyUnit(${item.id},u)})" oninput="hideUnitPills()">
           </div>
         </div>
       </div>`;
