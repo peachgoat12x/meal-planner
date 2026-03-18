@@ -870,7 +870,8 @@ function saveData() {
 // DATA MODEL — field reference for each record type:
 //
 // ingredients:  { id, name, category, qty, unit, loc, expiry }
-// dishes:       { id, name, category, baseServings, notes, ingredients:[{name,qty,unit}] }
+// dishes:       { id, name, category, baseServings, notes, ingredients:[{name,qty,unit,exclude}] }
+//                 exclude — true if ingredient should be skipped when generating shopping list
 // readyMeals:   { id, name, dishId, week, isLeftover, carried, category, servings,
 //                 loc, cooked, eatBy, note }
 //                 dishId     — links to dishes.id (null if no match or custom name)
@@ -1431,14 +1432,21 @@ function setCatFilter(c) { pantryCatFilter = c; pantryExpFilter = false; confirm
 function toggleExpFilter() { pantryExpFilter = !pantryExpFilter; confirmDel = null; render(); }
 
 // Ingredient Modal
-function openIngModal(id) {
+// When called with returnDishId (from pantry peek in dish detail):
+//   — ✕ navigates back to the peek view rather than closing entirely
+//   — Save navigates back to the dish detail after saving
+function openIngModal(id, returnDishId) {
   const ing = id ? db.ingredients.find(x => x.id === id) : null;
   const cats = ['Protein','Fibre','Carbs','Dry Goods','Condiments','Sauces','Snacks','Drinks'];
   const locs = ['Fridge','Freezer','Pantry'];
   const title = ing ? 'Edit Ingredient' : 'Add Ingredient';
+  const cancelAction = returnDishId ? `openPantryPeek(${id},${returnDishId})` : `closeModal()`;
 
   openModal(`
-    <div class="modal-title">${title}</div>
+    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>${title}</span>
+      <button class="btn-icon ico-muted" onclick="${cancelAction}">${ICO_CLOSE}</button>
+    </div>
     <div class="form-group">
       <label class="form-label">Name *</label>
       <input class="form-input" id="ing-name" value="${escHtml(ing?.name||'')}" placeholder="e.g. Pork belly">
@@ -1474,14 +1482,20 @@ function openIngModal(id) {
     <div class="modal-footer">
       <div></div>
       <div class="modal-footer-right">
-        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button class="btn-primary" onclick="saveIng(${id||'null'})">Save</button>
+        ${returnDishId ? '' : `<button class="btn-secondary" onclick="closeModal()">Cancel</button>`}
+        <button class="btn-primary" onclick="saveIng(${id||'null'},${returnDishId||'null'})">Save</button>
       </div>
     </div>
   `);
 }
 
-function saveIng(id) {
+// Saves a pantry ingredient (add or edit).
+// After saving, rescans both shoppingList and shoppingExtras to update pantry
+// context (qty, unit, location) for any name-matched items, or clears it if
+// no match exists — keeping the shopping list in sync with pantry edits.
+// When called with returnDishId (from pantry peek), navigates back to the
+// dish detail after saving rather than closing the modal and staying on pantry.
+function saveIng(id, returnDishId) {
   const name = document.getElementById('ing-name').value.trim();
   if (!name) return alert('Name is required');
   const obj = {
@@ -1500,9 +1514,30 @@ function saveIng(id) {
   } else {
     db.ingredients.push(obj);
   }
+
+  // Rescan shopping list and extras — update pantry context for any item whose
+  // name matches an ingredient, or clear it if no match exists.
+  db.shoppingList.forEach(item => {
+    const match = db.ingredients.find(p => p.name.toLowerCase() === item.name.toLowerCase());
+    item.pantryQty  = match ? match.qty  : null;
+    item.pantryUnit = match ? match.unit : null;
+    item.pantryLoc  = match ? match.loc  : null;
+  });
+  db.shoppingExtras.forEach(item => {
+    const match = db.ingredients.find(p => p.name.toLowerCase() === item.name.toLowerCase());
+    item.pantryQty  = match ? match.qty  : null;
+    item.pantryUnit = match ? match.unit : null;
+    item.pantryLoc  = match ? match.loc  : null;
+  });
+
   saveData();
-  closeModal();
-  render();
+  if (returnDishId) {
+    renderContent();
+    openDishDetail(returnDishId);
+  } else {
+    closeModal();
+    render();
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -1648,6 +1683,7 @@ function doGenerateShopList() {
   // Scales each dish's ingredients by (planned servings / dish.baseServings).
   // Matches ingredient names against pantry for stock context (qty, unit, location).
   // Generates a flat shoppingList array — one entry per ingredient across all selected dishes.
+  // Ingredients with exclude:true are skipped entirely.
   dishReplaceConfirm = false;
   const wd = getWeekData(viewWeek);
   const newList = [];
@@ -1659,6 +1695,7 @@ function doGenerateShopList() {
     const scale = servings / (dish.baseServings || 4);
 
     dish.ingredients.forEach(ing => {
+      if (ing.exclude) return; // user has marked this ingredient as excluded
       const needed = Math.round(ing.qty * scale * 100) / 100;
       const pantryMatch = db.ingredients.find(p => p.name.toLowerCase() === ing.name.toLowerCase());
       newList.push({
@@ -1705,6 +1742,12 @@ function openDishDetail(id) {
     return null;
   });
 
+  // Resolve pantry item IDs for peek — null if no pantry match
+  const pantryIds = dish.ingredients.map(i => {
+    const pantryMatch = db.ingredients.find(p => p.name.toLowerCase() === i.name.toLowerCase());
+    return pantryMatch ? pantryMatch.id : null;
+  });
+
   // single-pass ## section parser
   function renderNotes(notes) {
     if (!notes) return '';
@@ -1739,9 +1782,10 @@ function openDishDetail(id) {
         <table class="detail-ing-table">
           <tbody>
             ${dish.ingredients.map((i, idx) => `<tr>
-              <td class="dit-name"${stockColours[idx] ? ` style="color:${stockColours[idx]}"` : ''}>${escHtml(i.name)}</td>
+              <td class="dit-name"${stockColours[idx] ? ` style="color:${stockColours[idx]}"` : ''}>${pantryIds[idx] ? `<span class="name-link" onclick="openPantryPeek(${pantryIds[idx]},${id})">${escHtml(i.name)}</span>` : escHtml(i.name)}</td>
               <td class="dit-qtyunit">${i.qty} <span style="color:var(--text-muted)">${escHtml((i.unit||'').toLowerCase())}</span></td>
               ${hasCategory ? `<td class="dit-cat">${resolvedCats[idx] ? catBadge(resolvedCats[idx]) : ''}</td>` : ''}
+              <td style="width:32px;text-align:center"><button class="btn-icon ico" onclick="toggleIngExclude(${id},${idx})" title="${i.exclude ? 'Excluded from shopping list — tap to include' : 'Included in shopping list — tap to exclude'}" style="color:${i.exclude ? '#ccc' : 'var(--green-primary)'}">${ICO_CART}</button></td>
             </tr>`).join('')}
           </tbody>
         </table>
@@ -1753,6 +1797,48 @@ function openDishDetail(id) {
 function updateDetailCheckbox(cb, dishId) {
   // Already toggled by toggleDish, just re-render behind the modal
   renderContent();
+}
+
+// Flips the exclude flag on a dish ingredient at the given index.
+// Excluded ingredients are skipped when generating the shopping list.
+// Re-opens the dish detail modal directly to reflect the change.
+function toggleIngExclude(dishId, ingIdx) {
+  const dish = db.dishes.find(d => d.id === dishId);
+  if (!dish || !dish.ingredients[ingIdx]) return;
+  dish.ingredients[ingIdx].exclude = !dish.ingredients[ingIdx].exclude;
+  saveData();
+  openDishDetail(dishId);
+}
+
+// Read-only pantry item view opened from dish detail ingredient names.
+// Uses a label/value table layout (no input fields) so the read-only
+// state is unambiguous. Edit button opens openIngModal with returnDishId
+// context so after saving the user lands back on the dish detail.
+function openPantryPeek(ingId, dishId) {
+  const ing = db.ingredients.find(x => x.id === ingId);
+  if (!ing) return;
+  function row(label, value) {
+    if (!value) return '';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.6px">${label}</span>
+      <span style="font-size:14px;text-align:right">${value}</span>
+    </div>`;
+  }
+  openModal(`
+    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>${escHtml(ing.name)}</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-icon ico" onclick="openIngModal(${ingId},${dishId})" title="Edit">${ICO_EDIT}</button>
+        <button class="btn-icon ico-muted" onclick="closeModal()" title="Close">${ICO_CLOSE}</button>
+      </div>
+    </div>
+    <div style="margin-bottom:16px;min-height:400px">
+      ${row('Qty', ing.qty != null ? `${ing.qty} ${escHtml((ing.unit||'').toLowerCase())}` : '')}
+      ${row('Category', ing.category ? `<span class="badge badge-${({Protein:'protein',Fibre:'fibre',Carbs:'carbs','Dry Goods':'drygds',Condiments:'condiments',Sauces:'sauces',Snacks:'snacks',Drinks:'drinks'}[ing.category]||'grey')}">${ing.category}</span>` : '')}
+      ${row('Location', ing.loc ? `<span class="badge ${({'Fridge':'badge-fridge','Freezer':'badge-freezer','Pantry':'badge-pantry'}[ing.loc]||'badge-grey')}">${ing.loc}</span>` : '')}
+      ${ing.expiry ? row('Expiry', fmtDateFull(ing.expiry) + (daysUntilExpiry(ing.expiry) < 0 ? ' <span class="badge badge-red">Expired</span>' : daysUntilExpiry(ing.expiry) <= 14 ? ` <span class="badge badge-amber">${daysUntilExpiry(ing.expiry)}d</span>` : '')) : ''}
+    </div>
+  `);
 }
 
 // Dish Add/Edit Modal
@@ -1860,18 +1946,24 @@ function confirmDeleteDish(id) {
   render();
 }
 
+// Saves a dish (add or edit). When editing, preserves the exclude flag on each
+// ingredient record — the flag is not surfaced in the edit form so must be
+// carried forward from the existing data to avoid losing toggle state.
 function saveDish(id) {
   const name = document.getElementById('dish-name').value.trim();
   if (!name) return alert('Dish name is required');
+  const existingDish = id ? db.dishes.find(d => d.id === id) : null;
   const ingRows = document.querySelectorAll('#dish-ings .ing-row');
   const ingredients = [];
-  ingRows.forEach(row => {
+  ingRows.forEach((row, idx) => {
     const inputs = row.querySelectorAll('input');
     const n = inputs[0].value.trim();
     const unitVal = inputs[2].value.trim();
     if (n) {
       saveCustomUnit(unitVal);
-      ingredients.push({ name: n, qty: parseFloat(inputs[1].value)||0, unit: unitVal.toLowerCase() });
+      // Preserve the exclude flag from the existing ingredient at the same index
+      const existingExclude = existingDish?.ingredients[idx]?.exclude || false;
+      ingredients.push({ name: n, qty: parseFloat(inputs[1].value)||0, unit: unitVal.toLowerCase(), exclude: existingExclude });
     }
   });
   const obj = {
@@ -2466,7 +2558,7 @@ function renderShop() {
   } else {
     planItems.forEach(item => {
       const pantryMeta = item.pantryQty !== null
-        ? `Need: ${item.needed} ${escHtml((item.unit||'').toLowerCase())} · Pantry: ${item.pantryQty} ${escHtml((item.pantryUnit||'').toLowerCase())}${item.pantryLoc ? ' · ' + item.pantryLoc : ''}`
+        ? `Need: ${item.needed} ${escHtml((item.unit||'').toLowerCase())} · ${item.pantryLoc ? item.pantryLoc + ': ' : ''}${item.pantryQty} ${escHtml((item.pantryUnit||'').toLowerCase())}`
         : `Need: ${item.needed} ${escHtml((item.unit||'').toLowerCase())} · None at home`;
       html += `<div class="shop-item${item.checked ? ' checked' : ''}">
         <input type="checkbox" class="shop-check" ${item.checked ? 'checked' : ''} onchange="toggleShopItem('plan',${item.id},this.checked)">
@@ -2496,6 +2588,7 @@ function renderShop() {
         <div class="shop-item-body">
           <div class="shop-item-left">
             <div class="shop-item-name">${escHtml(item.name)}</div>
+            ${item.pantryQty != null ? `<div class="shop-item-meta">${item.pantryLoc ? item.pantryLoc + ': ' : ''}${item.pantryQty} ${escHtml((item.pantryUnit||'').toLowerCase())}</div>` : ''}
           </div>
           ${(item.qty != null || item.unit) ? `<div class="shop-item-right">
             <span class="shop-tobuy-input" style="display:inline-block;text-align:center;padding:5px 8px;font-size:14px;font-weight:700;color:var(--green-dark);background:var(--green-light);border:1.5px solid var(--border);border-radius:6px;min-width:68px">${item.qty != null ? item.qty : '—'}</span>
