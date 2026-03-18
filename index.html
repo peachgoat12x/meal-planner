@@ -1180,7 +1180,7 @@ function expiryBadge(expiry) {
 // Deletion uses an inline two-step confirm pattern to avoid accidental deletes.
 // Tapping the trash icon sets confirmDel = {scope, id} and re-renders, showing tick/cross buttons in place.
 // Tapping tick calls doDel which performs the delete. Tapping cross clears confirmDel and re-renders.
-// scope values: 'ing' (pantry), 'dish', 'ready', 'serving', 'shopX' (shopping extras), 'shopAll' (entire shopping list)
+// scope values: 'ing' (pantry), 'dish', 'ready', 'serving', 'shopAll' (entire shopping list)
 // Dish deletion uses a separate dishDeleteConfirm flag because it lives inside a fullscreen modal
 // where render() does not update modal content — openDishModal() is called directly instead.
 function delBtn(scope, id) {
@@ -1210,7 +1210,6 @@ function doDel(scope, id) {
   else if (scope === 'dish') { db.dishes = db.dishes.filter(x => x.id !== id); closeModal(); }
   else if (scope === 'ready') db.readyMeals = db.readyMeals.filter(x => x.id !== id);
   else if (scope === 'serving') { db.servingGuide = db.servingGuide.filter(x => x.id !== id); openModal(renderServingModal(), true); }
-  else if (scope === 'shopX') db.shoppingExtras = db.shoppingExtras.filter(x => x.id !== id);
   else if (scope === 'shopAll') { db.shoppingList = []; db.shoppingExtras = []; }
   saveData();
   render();
@@ -2695,17 +2694,16 @@ function renderShop() {
   } else {
     extras.forEach(item => {
       html += `<div class="shop-item${item.checked ? ' checked' : ''}">
-        ${delBtn('shopX', item.id)}
         <input type="checkbox" class="shop-check" ${item.checked ? 'checked' : ''} onchange="toggleShopItem('extra',${item.id},this.checked)" style="margin-left:0">
         <div class="shop-item-body">
           <div class="shop-item-left">
             <div class="shop-item-name">${escHtml(item.name)}</div>
-            ${item.pantryQty != null ? `<div class="shop-item-meta">${item.pantryLoc ? item.pantryLoc + ': ' : ''}${item.pantryQty} ${escHtml((item.pantryUnit||'').toLowerCase())}</div>` : ''}
+            ${item.pantryQty != null ? `<div class="shop-item-meta">${item.pantryLoc ? item.pantryLoc + ': ' : ''}${item.pantryQty} ${pluraliseUnit(item.pantryUnit, item.pantryQty)}</div>` : ''}
           </div>
-          ${(item.qty != null || item.unit) ? `<div class="shop-item-right">
-            <span class="shop-tobuy-input" style="display:inline-block;text-align:center;padding:5px 8px;font-size:14px;font-weight:700;color:var(--green-dark);background:var(--green-light);border:1.5px solid var(--border);border-radius:6px;min-width:68px">${item.qty != null ? item.qty : '—'}</span>
-            <span class="shop-tobuy-unit">${pluraliseUnit(item.unit, item.qty)}</span>
-          </div>` : ''}
+          <div class="shop-item-right">
+            <input class="shop-tobuy-input" id="extra-qty-${item.id}" type="number" step="0.01" value="${item.qty != null ? item.qty : ''}" placeholder="—" oninput="updateExtraQty(${item.id},this.value)" onchange="updateExtraQty(${item.id},this.value)">
+            <input class="shop-tobuy-unit-input" id="extra-unit-${item.id}" type="text" value="${escHtml((item.unit||'').toLowerCase())}" onchange="updateExtraUnit(${item.id},this.value)" onfocus="showUnitPills('extra-unit-${item.id}', function(u){updateExtraUnit(${item.id},u)})" onclick="showUnitPills('extra-unit-${item.id}', function(u){updateExtraUnit(${item.id},u)})" oninput="hideUnitPills()">
+          </div>
         </div>
       </div>`;
     });
@@ -2744,6 +2742,27 @@ function updateToBuyUnit(id, val) {
   const item = db.shoppingList.find(x => x.id === id);
   if (item) {
     item.toBuyUnit = val.trim().toLowerCase();
+    saveData();
+  }
+}
+
+// Extras inline editing — mirrors updateToBuy/updateToBuyUnit for shopping extras.
+// qty stored as null when empty/zero (no qty specified) to match original data model.
+function updateExtraQty(id, val) {
+  id = Number(id);
+  const item = db.shoppingExtras.find(x => x.id === id);
+  if (item) {
+    const n = parseFloat(val);
+    item.qty = isNaN(n) || n === 0 ? null : n;
+    saveData();
+  }
+}
+
+function updateExtraUnit(id, val) {
+  id = Number(id);
+  const item = db.shoppingExtras.find(x => x.id === id);
+  if (item) {
+    item.unit = val.trim().toLowerCase();
     saveData();
   }
 }
