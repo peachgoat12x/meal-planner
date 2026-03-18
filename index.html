@@ -461,27 +461,6 @@
   .dit-qtyunit { width: 80px; text-align: right; white-space: nowrap; }
   .dit-cat { width: 25%; padding-left: 8px; }
   .unit-field { text-transform: lowercase; }
-  /* Floating pill panel — fixed position so it floats above flex rows, modals, and scroll containers.
-     Positioned by JS using getBoundingClientRect() of the focused input.
-     Max-height + overflow-y allows scrolling if the panel is taller than available space. */
-  .unit-pills {
-    position: fixed;
-    z-index: 500;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    max-width: 320px;
-    max-height: 180px;
-    overflow-y: auto;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-  }
-  .unit-pills.hidden { display: none; }
-  .unit-pill { background: white; border: 1.5px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--text-muted); transition: all 0.15s; white-space: nowrap; }
-  .unit-pill:active { background: var(--green-primary); border-color: var(--green-primary); color: white; }
   .detail-notes { font-size: 15px; color: #444; background: var(--surface); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); line-height: 1.7; }
   .recipe-section-header { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; border-top: 1px solid var(--border); margin-top: 10px; margin-bottom: 4px; padding-top: 8px; }
   .detail-checkbox { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--green-light); border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--green-dark); }
@@ -674,6 +653,39 @@
   }
   .rm-suggestion-row.carried:active { background: var(--amber-bg); }
 
+  /* ── UNIT DROPDOWN ── */
+  /* Inline dropdown below unit inputs. Sits in document flow so it scrolls with the
+     form naturally on mobile — no fixed positioning or viewport calculations needed.
+     Max-height + overflow-y keeps the dropdown compact when showing all 17 units.
+     Modelled on .rm-suggestions for visual consistency. */
+  .unit-dropdown {
+    width: 100%;
+    border: 1.5px solid var(--green-primary);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    background: white;
+    margin-top: -2px;
+    margin-bottom: 8px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .unit-dropdown.hidden { display: none; }
+  .unit-dropdown-row {
+    padding: 9px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .unit-dropdown-row:last-child { border-bottom: none; }
+  .unit-dropdown-row:active { background: var(--green-light); }
+  .unit-dropdown-nomatches {
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
   /* ── CARRY BTN (SVG tupperware icon) ──
      Grey when not carried, amber when carried.
      Used in renderReady and renderHome card bottom row.
@@ -762,10 +774,6 @@
     <div class="modal" id="modal-content" onclick="event.stopPropagation()"></div>
   </div>
 
-  <!-- FLOATING UNIT PILL PANEL -->
-  <!-- Single shared panel positioned via JS below whichever unit input is focused.
-       Lives outside modals so it is never recreated on modal re-render. -->
-  <div class="unit-pills hidden" id="unit-pills-container"></div>
 </div>
 
 <script>
@@ -979,10 +987,10 @@ if (db.readyMeals.length > 0 && !db.readyMeals.some(m => m.week)) {
 // ═══════════════════════════════════════════════════
 // UNITS
 // ═══════════════════════════════════════════════════
-// Unit fields use a floating pill picker for quick selection from the standard list.
-// Free-text entry still works — typed values save to the record but are no longer
-// accumulated in db.customUnits. The pill panel is a single fixed-position element
-// shared across all unit inputs (see showUnitPills / hideUnitPills).
+// Unit fields use an inline dropdown for quick selection from the standard list.
+// Free-text entry still works — typed values save to the record but are not
+// accumulated in db.customUnits. The dropdown appears below each unit input,
+// filters as the user types, and scrolls with the form naturally on mobile.
 // Standard units of measure use abbreviations (g, kg, ml etc).
 // Non-standard units use full spellings (piece, bottle etc) for clarity.
 // Old short forms (pc, btl, pkt, clv, blk) removed — replaced by full-word equivalents.
@@ -1013,78 +1021,147 @@ if (db.customUnits && db.customUnits.length > 0) {
   if (db.customUnits.length !== before) saveData();
 }
 
-function unitComboHtml(id, currentValue) {
-  return `<input class="form-input unit-field" id="${id}" value="${escHtml(currentValue||'')}" placeholder="Unit" autocomplete="off" onfocus="showUnitPills(this.id)" onclick="showUnitPills(this.id)" oninput="hideUnitPills()">`;
+// ═══════════════════════════════════════════════════
+// UNIT DROPDOWN
+// ═══════════════════════════════════════════════════
+// Inline dropdown that appears directly below each unit input.
+// Sits in document flow so it scrolls with the form on mobile — no positioning logic needed.
+//
+// activeUnitDropdownId — tracks which dropdown is currently open (null when none).
+// Used by showUnitDropdown to close any open dropdown before opening a new one,
+// and by the outside-tap listener to know whether to act.
+//
+// filterUnits(val): two-tier sort — starts-with matches first (in STANDARD_UNITS order),
+//   then contains-but-not-starts-with matches. Both tiers preserve STANDARD_UNITS order.
+//   Returns full list when val is empty.
+//
+// showUnitDropdown(inputId, onSelect):
+//   Closes any currently open unit dropdown, then populates and shows the dropdown
+//   for the given input. onSelect is an optional callback(value) used by shopping list
+//   inputs to call save functions directly rather than just setting input.value.
+//
+// hideUnitDropdown(inputId): hides the dropdown for the given input and clears activeUnitDropdownId.
+//
+// selectUnitSuggestion(inputId, val, onSelect):
+//   Called via onmousedown on each suggestion row. e.preventDefault() keeps the input
+//   focused so onblur does not fire before the tap registers (same pattern as rm suggestions).
+//
+// Outside-tap handling: a single document mousedown/touchstart listener hides the active
+//   dropdown when the user taps outside both the input and its dropdown. No scroll listener
+//   needed — the dropdown moves with the form naturally.
+
+let activeUnitDropdownId = null;
+
+function filterUnits(val) {
+  if (!val) return STANDARD_UNITS;
+  const q = val.toLowerCase();
+  const startsWith = STANDARD_UNITS.filter(u => u.startsWith(q));
+  const contains = STANDARD_UNITS.filter(u => !u.startsWith(q) && u.includes(q));
+  return [...startsWith, ...contains];
 }
 
-// Unit pill picker — floating panel approach.
-// The panel (#unit-pills-container) is a single fixed-position element in the page HTML,
-// shared across all unit inputs. It is never inserted into the DOM per-focus — instead
-// it is repositioned and repopulated each time a unit input is focused.
-//
-// showUnitPills(inputId, onSelect):
-//   inputId  — id of the focused unit input
-//   onSelect — optional callback(value) called when a pill is tapped.
-//              If omitted, the pill simply sets input.value (standard behaviour).
-//              Used by shopping list plan items to call updateToBuyUnit() directly.
-//
-// Positioning: getBoundingClientRect() gives viewport coords for position:fixed.
-// If insufficient space below the input, the panel flips above it.
-// hideUnitPills() is called on outside tap and on scroll (see listeners at bottom of script).
-function showUnitPills(inputId, onSelect) {
-  const input = document.getElementById(inputId);
-  const panel = document.getElementById('unit-pills-container');
-  if (!input || !panel) return;
-
-  // Reset panel first — handles double-calls from onfocus+onclick and switching between inputs
-  hideUnitPills();
-
-  // Populate panel with standard units (custom units no longer accumulated)
-  panel.innerHTML = '';
-  STANDARD_UNITS.forEach(u => {
-    const pill = document.createElement('button');
-    pill.className = 'unit-pill';
-    pill.type = 'button';
-    pill.textContent = u;
-    pill.onmousedown = (e) => {
-      e.preventDefault(); // prevent input blur before pill tap registers
-      if (onSelect) {
-        onSelect(u);
-      } else {
-        input.value = u;
-      }
-      hideUnitPills();
-    };
-    panel.appendChild(pill);
-  });
-
-  // Anchor panel to the left edge of the #app container for a consistent position
-  // regardless of where the unit input sits on screen (left column, right column, etc).
-  // Vertical position follows the focused input so the panel appears just below it.
-  const appEl = document.getElementById('app');
-  const appRect = appEl ? appEl.getBoundingClientRect() : { left: 14, width: 320 };
-  const rect = input.getBoundingClientRect();
-  const panelWidth = Math.min(appRect.width - 28, 320);
-  const panelHeight = 180;
-  const spaceBelow = window.innerHeight - rect.bottom;
-  panel.style.left = (appRect.left + 14) + 'px';
-  panel.style.width = panelWidth + 'px';
-  if (spaceBelow >= panelHeight || spaceBelow >= 120) {
-    panel.style.top = (rect.bottom + 4) + 'px';
-    panel.style.bottom = 'auto';
-  } else {
-    panel.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
-    panel.style.top = 'auto';
+function showUnitDropdown(inputId) {
+  // Close any currently open unit dropdown first
+  if (activeUnitDropdownId && activeUnitDropdownId !== inputId) {
+    hideUnitDropdown(activeUnitDropdownId);
   }
+  activeUnitDropdownId = inputId;
 
-  panel.classList.remove('hidden');
+  const input = document.getElementById(inputId);
+  const dropdown = document.getElementById(inputId + '-dropdown');
+  if (!input || !dropdown) return;
+
+  const units = filterUnits(input.value);
+  renderUnitDropdown(dropdown, inputId, units);
+  dropdown.classList.remove('hidden');
 }
 
-function hideUnitPills() {
-  const panel = document.getElementById('unit-pills-container');
-  if (panel) panel.classList.add('hidden');
+function hideUnitDropdown(inputId) {
+  const dropdown = document.getElementById(inputId + '-dropdown');
+  if (dropdown) dropdown.classList.add('hidden');
+  if (activeUnitDropdownId === inputId) activeUnitDropdownId = null;
 }
 
+function renderUnitDropdown(dropdown, inputId, units) {
+  if (units.length === 0) {
+    dropdown.innerHTML = `<div class="unit-dropdown-nomatches">No matches</div>`;
+    return;
+  }
+  // onmousedown with event.preventDefault() prevents the input losing focus before
+  // the tap registers — same pattern as rm suggestions. The callback is looked
+  // up from unitOnSelectCallbacks at selection time (Build B wires these for shopping list inputs).
+  dropdown.innerHTML = units.map(u =>
+    `<div class="unit-dropdown-row" onmousedown="event.preventDefault();selectUnitSuggestion('${inputId}','${u}')">${u}</div>`
+  ).join('');
+}
+
+function selectUnitSuggestion(inputId, val) {
+  // Retrieves the onSelect callback from unitOnSelectCallbacks if registered (shopping list inputs),
+  // otherwise sets input.value directly. Called from onmousedown on each suggestion row.
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const cb = unitOnSelectCallbacks[inputId];
+  if (cb) {
+    cb(val);
+  } else {
+    input.value = val;
+  }
+  hideUnitDropdown(inputId);
+}
+
+// Registry for onSelect callbacks — keyed by inputId.
+// Shopping list inputs register their save callbacks here when showing the dropdown,
+// allowing selectUnitSuggestion to retrieve them by key without inline function strings.
+const unitOnSelectCallbacks = {};
+
+// showUnitDropdownWithCallback: used by shopping list inputs that need to call a save
+// function directly on selection rather than just setting input.value.
+// Registers the callback then calls showUnitDropdown as normal.
+function showUnitDropdownWithCallback(inputId, onSelect) {
+  unitOnSelectCallbacks[inputId] = onSelect;
+  showUnitDropdown(inputId);
+}
+
+// unitComboHtml: returns an input + dropdown container pair.
+// The dropdown container id is always {inputId}-dropdown.
+// onfocus shows all units; oninput filters as the user types via filterUnitDropdown().
+// No onclick needed — onfocus handles tap-away-and-back reliably.
+function unitComboHtml(id, currentValue) {
+  return `<input class="form-input unit-field" id="${id}" value="${escHtml(currentValue||'')}" placeholder="Unit" autocomplete="off"
+    onfocus="showUnitDropdown('${id}')"
+    oninput="filterUnitDropdown('${id}',this.value)">
+  <div class="unit-dropdown hidden" id="${id}-dropdown"></div>`;
+}
+
+// filterUnitDropdown: called oninput on each unit field.
+// Re-renders the dropdown with filtered results for the given input.
+function filterUnitDropdown(inputId, val) {
+  const dropdown = document.getElementById(inputId + '-dropdown');
+  if (!dropdown) return;
+  const units = filterUnits(val);
+  renderUnitDropdown(dropdown, inputId, units);
+  dropdown.classList.remove('hidden');
+  activeUnitDropdownId = inputId;
+}
+
+// Outside-tap listener — hides the active unit dropdown when the user taps outside
+// both the input and its dropdown. No-op when no unit dropdown is open.
+document.addEventListener('mousedown', function(e) {
+  if (!activeUnitDropdownId) return;
+  const input = document.getElementById(activeUnitDropdownId);
+  const dropdown = document.getElementById(activeUnitDropdownId + '-dropdown');
+  if (input && input.contains(e.target)) return;
+  if (dropdown && dropdown.contains(e.target)) return;
+  hideUnitDropdown(activeUnitDropdownId);
+});
+document.addEventListener('touchstart', function(e) {
+  if (!activeUnitDropdownId) return;
+  const input = document.getElementById(activeUnitDropdownId);
+  const dropdown = document.getElementById(activeUnitDropdownId + '-dropdown');
+  if (input && input.contains(e.target)) return;
+  if (dropdown && dropdown.contains(e.target)) return;
+  hideUnitDropdown(activeUnitDropdownId);
+}, { passive: true });
 
 function nextId() {
   const id = db.nextId || 11;
@@ -1172,12 +1249,13 @@ function expiryBadge(expiry) {
 // Deletion uses an inline two-step confirm pattern to avoid accidental deletes.
 // Tapping the trash icon sets confirmDel = {scope, id} and re-renders, showing tick/cross buttons in place.
 // Tapping tick calls doDel which performs the delete. Tapping cross clears confirmDel and re-renders.
-// scope values: 'ing' (pantry), 'dish', 'ready', 'serving', 'shopAll' (entire shopping list)
+// scope values: 'ing' (pantry), 'dish', 'ready', 'serving', 'shopAll' (entire shopping list), 'shopTicked' (checked items only)
 // Dish deletion uses a separate dishDeleteConfirm flag because it lives inside a fullscreen modal
 // where render() does not update modal content — openDishModal() is called directly instead.
 function delBtn(scope, id) {
   if (confirmDel && confirmDel.scope === scope && confirmDel.id === id) {
     return `<div class="del-confirm">
+      <span style="font-size:12px;color:var(--red)">Delete?</span>
       <button class="btn-danger row-actions" onclick="doDel('${scope}',${id})">${ICO_TICK}</button>
       <button class="btn-cancel row-actions" onclick="cancelDel()">${ICO_CROSS}</button>
     </div>`;
@@ -1202,6 +1280,7 @@ function doDel(scope, id) {
   else if (scope === 'dish') { db.dishes = db.dishes.filter(x => x.id !== id); closeModal(); }
   else if (scope === 'ready') db.readyMeals = db.readyMeals.filter(x => x.id !== id);
   else if (scope === 'serving') { db.servingGuide = db.servingGuide.filter(x => x.id !== id); openModal(renderServingModal(), true); }
+  else if (scope === 'shopTicked') { db.shoppingList = db.shoppingList.filter(x => !x.checked); db.shoppingExtras = db.shoppingExtras.filter(x => !x.checked); }
   else if (scope === 'shopAll') { db.shoppingList = []; db.shoppingExtras = []; }
   saveData();
   render();
@@ -1826,15 +1905,9 @@ function openDishDetail(id) {
   if (!dish) return;
   const selected = isDishSelected(id, viewWeek);
 
-  // pre-pass to resolve ingredient categories and stock colours
+  // pre-pass to resolve stock colours and pantry IDs
   const plannedServings = getDishServings(id, viewWeek);
   const scale = plannedServings / (dish.baseServings || 4);
-
-  const resolvedCats = dish.ingredients.map(i => {
-    const pantryMatch = db.ingredients.find(p => p.name.toLowerCase() === i.name.toLowerCase());
-    return pantryMatch?.category || i.category || null;
-  });
-  const hasCategory = resolvedCats.some(c => c !== null);
 
   const stockColours = dish.ingredients.map(i => {
     const needed = i.qty * scale;
@@ -1887,7 +1960,6 @@ function openDishDetail(id) {
             ${dish.ingredients.map((i, idx) => `<tr>
               <td class="dit-name"${stockColours[idx] ? ` style="color:${stockColours[idx]}"` : ''}>${pantryIds[idx] ? `<span class="name-link" onclick="openPantryPeek(${pantryIds[idx]},${id})">${escHtml(i.name)}</span>` : escHtml(i.name)}</td>
               <td class="dit-qtyunit">${i.qty} <span style="color:var(--text-muted)">${pluraliseUnit(i.unit, i.qty)}</span></td>
-              ${hasCategory ? `<td class="dit-cat">${resolvedCats[idx] ? catBadge(resolvedCats[idx]) : ''}</td>` : ''}
               <td style="width:32px;text-align:center"><button class="btn-icon ico" onclick="toggleIngExclude(${id},${idx})" title="${i.exclude ? 'Excluded from shopping list — tap to include' : 'Included in shopping list — tap to exclude'}" style="color:${i.exclude ? '#ccc' : 'var(--green-primary)'}">${ICO_CART}</button></td>
             </tr>`).join('')}
           </tbody>
@@ -1963,10 +2035,10 @@ function openDishModal(id) {
   const topTitle = dish ? escHtml(dish.name) : 'Add Dish';
 
   const deleteFooter = dishDeleteConfirm
-    ? `<div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:13px;color:var(--red)">Delete dish?</span>
-        <button class="btn-danger row-actions" onclick="confirmDeleteDish(${id})">${ICO_TICK} Yes</button>
-        <button class="btn-cancel row-actions" onclick="cancelDishDelete(${id})">${ICO_CROSS} No</button>
+    ? `<div class="del-confirm">
+        <span style="font-size:12px;color:var(--red)">Delete dish?</span>
+        <button class="btn-danger row-actions" onclick="confirmDeleteDish(${id})">${ICO_TICK}</button>
+        <button class="btn-cancel row-actions" onclick="cancelDishDelete(${id})">${ICO_CROSS}</button>
        </div>`
     : `<button class="btn-icon ico" onclick="startDishDelete(${id})" title="Delete">${ICO_TRASH}</button>`;
 
@@ -2528,10 +2600,10 @@ function openServingModal(id) {
 
   const deleteFooter = id
     ? (servingDeleteId === id
-        ? `<div style="display:flex;align-items:center;gap:8px">
-             <span style="font-size:13px;color:var(--red)">Delete entry?</span>
-             <button class="btn-danger row-actions" onclick="confirmServingDelete(${id})">${ICO_TICK} Yes</button>
-             <button class="btn-cancel row-actions" onclick="cancelServingDelete(${id})">${ICO_CROSS} No</button>
+        ? `<div class="del-confirm">
+             <span style="font-size:12px;color:var(--red)">Delete entry?</span>
+             <button class="btn-danger row-actions" onclick="confirmServingDelete(${id})">${ICO_TICK}</button>
+             <button class="btn-cancel row-actions" onclick="cancelServingDelete(${id})">${ICO_CROSS}</button>
            </div>`
         : `<button class="btn-icon ico" onclick="startServingDelete(${id})" title="Delete">${ICO_TRASH}</button>`)
     : '';
@@ -2633,9 +2705,15 @@ function renderShop() {
     <div class="shop-header">
       <span class="shop-title" style="display:flex;align-items:center;gap:7px">${ICO_CART} Grocery List</span>
       <div class="shop-header-btns">
-        ${hasTicked ? `<button class="btn-icon ico" onclick="clearTicked()" title="Delete ticked items">${ICO_TRASH}</button>` : ''}
+        ${hasTicked ? (confirmDel && confirmDel.scope === 'shopTicked'
+          ? `<div class="del-confirm"><span style="font-size:12px;color:var(--red)">Clear ticked?</span>
+               <button class="btn-danger row-actions" onclick="doDel('shopTicked',0)">${ICO_TICK}</button>
+               <button class="btn-cancel row-actions" onclick="cancelDel()">${ICO_CROSS}</button>
+             </div>`
+          : `<button class="btn-icon ico" onclick="startDel('shopTicked',0)" title="Delete ticked items">${ICO_TRASH}</button>`)
+        : ''}
         ${total > 0 ? (confirmDel && confirmDel.scope === 'shopAll'
-          ? `<div class="del-confirm">
+          ? `<div class="del-confirm"><span style="font-size:12px;color:var(--red)">Clear all?</span>
                <button class="btn-danger row-actions" onclick="doDel('shopAll',0)">${ICO_TICK}</button>
                <button class="btn-cancel row-actions" onclick="cancelDel()">${ICO_CROSS}</button>
              </div>`
@@ -2760,13 +2838,7 @@ function updateExtraUnit(id, val) {
   }
 }
 
-function clearTicked() {
-  db.shoppingList = db.shoppingList.filter(x => !x.checked);
-  db.shoppingExtras = db.shoppingExtras.filter(x => !x.checked);
-  saveData();
-  render();
-}
-
+// shopTicked deletion is handled by doDel('shopTicked', 0) — see DELETE PATTERN section.
 function openShopExtraModal() {
   openModal(`
     <div class="modal-title">Add Extra Item</div>
@@ -2915,28 +2987,6 @@ function escHtml(s) {
 
 // ═══════════════════════════════════════════════════
 // INIT
-// ═══════════════════════════════════════════════════
-// Hide the floating unit pill panel when tapping outside it or any unit input,
-// and when scrolling (panel position would be stale after scroll).
-document.addEventListener('mousedown', function(e) {
-  const panel = document.getElementById('unit-pills-container');
-  if (!panel || panel.classList.contains('hidden')) return;
-  if (panel.contains(e.target)) return;
-  if (e.target.classList.contains('unit-field')) return;
-  if (e.target.classList.contains('shop-tobuy-unit-input')) return;
-  hideUnitPills();
-});
-document.addEventListener('touchstart', function(e) {
-  const panel = document.getElementById('unit-pills-container');
-  if (!panel || panel.classList.contains('hidden')) return;
-  if (panel.contains(e.target)) return;
-  if (e.target.classList.contains('unit-field')) return;
-  if (e.target.classList.contains('shop-tobuy-unit-input')) return;
-  hideUnitPills();
-}, { passive: true });
-// Hide on any scroll (including inside modals) to avoid panel floating at wrong position
-window.addEventListener('scroll', hideUnitPills, true);
-
 renderContent();
 </script>
 </body>
