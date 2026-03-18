@@ -740,6 +740,7 @@
     align-items: center;
   }
   .search-clear:active { color: var(--text); }
+  .search-clear.hidden { display: none; }
 
   /* ── UTILITY CLASSES (extracted from inline styles) ── */
   /* SVG icon containers — suppresses inline-block gap beneath SVGs */
@@ -1583,8 +1584,8 @@ function renderPantry() {
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
       <div class="search-wrap" style="flex:1;margin-bottom:0">
         <span class="search-icon">${ICO_SEARCH}</span>
-        <input class="search-input" type="text" placeholder="Search ingredients…" value="${escHtml(pantrySearch)}" oninput="pantrySearch=this.value;confirmDel=null;renderPantryList()">
-        ${pantrySearch ? `<button class="search-clear" onclick="pantrySearch='';confirmDel=null;renderPantryList()" title="Clear search">${ICO_CROSS}</button>` : ''}
+        <input class="search-input" type="text" placeholder="Search ingredients…" value="${escHtml(pantrySearch)}" oninput="pantrySearch=this.value;confirmDel=null;renderPantryList();document.getElementById('pantry-search-clear').classList.toggle('hidden',!this.value)">
+        <button class="search-clear${pantrySearch ? '' : ' hidden'}" id="pantry-search-clear" onclick="pantrySearch='';confirmDel=null;renderPantryList();this.classList.add('hidden');render()" title="Clear search">${ICO_CROSS}</button>
       </div>
       <button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="openIngModal()">+ Item</button>
     </div>
@@ -1847,8 +1848,8 @@ function renderDishes() {
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
       <div class="search-wrap" style="flex:1;margin-bottom:0">
         <span class="search-icon">${ICO_SEARCH}</span>
-        <input class="search-input" type="text" placeholder="Search dishes…" value="${escHtml(dishSearch)}" oninput="dishSearch=this.value;confirmDel=null;renderDishList()">
-        ${dishSearch ? `<button class="search-clear" onclick="dishSearch='';confirmDel=null;renderDishList()" title="Clear search">${ICO_CROSS}</button>` : ''}
+        <input class="search-input" type="text" placeholder="Search dishes…" value="${escHtml(dishSearch)}" oninput="dishSearch=this.value;confirmDel=null;renderDishList();document.getElementById('dish-search-clear').classList.toggle('hidden',!this.value)">
+        <button class="search-clear${dishSearch ? '' : ' hidden'}" id="dish-search-clear" onclick="dishSearch='';confirmDel=null;renderDishList();this.classList.add('hidden');render()" title="Clear search">${ICO_CROSS}</button>
       </div>
       <button class="btn-primary btn-primary-sm" onclick="openDishModal()">+ Add Dish</button>
     </div>
