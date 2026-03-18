@@ -1060,14 +1060,14 @@ if (db.customUnits && db.customUnits.length > 0) {
 //   then contains-but-not-starts-with matches. Both tiers preserve STANDARD_UNITS order.
 //   Returns full list when val is empty.
 //
-// showUnitDropdown(inputId, onSelect):
+// showUnitDropdown(inputId):
 //   Closes any currently open unit dropdown, then populates and shows the dropdown
-//   for the given input. onSelect is an optional callback(value) used by shopping list
-//   inputs to call save functions directly rather than just setting input.value.
+//   for the given input. Callbacks for shopping list inputs are registered separately
+//   via showUnitDropdownWithCallback before calling this.
 //
 // hideUnitDropdown(inputId): hides the dropdown for the given input and clears activeUnitDropdownId.
 //
-// selectUnitSuggestion(inputId, val, onSelect):
+// selectUnitSuggestion(inputId, val):
 //   Called via onmousedown on each suggestion row. e.preventDefault() keeps the input
 //   focused so onblur does not fire before the tap registers (same pattern as rm suggestions).
 //
@@ -1151,8 +1151,8 @@ function showUnitDropdownWithCallback(inputId, onSelect) {
 
 // unitComboHtml: returns an input + dropdown container pair.
 // The dropdown container id is always {inputId}-dropdown.
-// onfocus shows all units; oninput filters as the user types via filterUnitDropdown().
-// No onclick needed — onfocus handles tap-away-and-back reliably.
+// onfocus shows all units on first tap; onclick reopens the dropdown when the input
+// already has focus (e.g. after scrolling away and tapping back); oninput filters as the user types.
 function unitComboHtml(id, currentValue) {
   return `<div class="unit-dropdown-wrap">
     <input class="form-input unit-field" id="${id}" value="${escHtml(currentValue||'')}" placeholder="Unit" autocomplete="off"
@@ -1390,11 +1390,11 @@ function renderContent() {
   const tabs = [renderHome, renderDishes, renderReady, renderPantry, renderShop];
   content.innerHTML = tabs[activeTab]();
 
-  // Populate the pantry item list (kept separate so search oninput can
+  // Populate the dish list (kept separate so search oninput can
   // update it without recreating the input element and closing the keyboard)
-  if (activeTab === 3) renderPantryList();
-  // Populate the dish list (kept separate for the same reason as pantry)
   if (activeTab === 1) renderDishList();
+  // Populate the pantry item list (kept separate for the same reason as dishes)
+  if (activeTab === 3) renderPantryList();
 }
 
 // ═══════════════════════════════════════════════════
