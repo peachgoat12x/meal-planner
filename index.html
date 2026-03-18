@@ -964,12 +964,13 @@ if (db.readyMeals.length > 0 && !db.readyMeals.some(m => m.week)) {
 // Old short forms (pc, btl, pkt, clv, blk) removed — replaced by full-word equivalents.
 const STANDARD_UNITS = ['g','kg','ml','l','tbsp','tsp','cup','piece','bottle','packet','clove','block','slice','cube','can','box','carton'];
 
-// Prune custom units that are now covered by the updated STANDARD_UNITS list.
+// Prune custom units that are now covered by the updated STANDARD_UNITS list,
+// plus old short forms and plural variants that were previously saved as custom units.
 // Runs on every load but is a safe no-op if customUnits is empty or already clean.
-// Handles users who had old short forms (pcs, blocks, cloves, ctn etc) saved as custom units.
+const LEGACY_UNITS = ['pc','pcs','btl','pkt','clv','blk','ctn','blocks','cloves','pieces','bottles','packets','slices','cubes','cans','boxes','cartons'];
 if (db.customUnits && db.customUnits.length > 0) {
   const before = db.customUnits.length;
-  db.customUnits = db.customUnits.filter(u => !STANDARD_UNITS.includes(u.toLowerCase()));
+  db.customUnits = db.customUnits.filter(u => !STANDARD_UNITS.includes(u.toLowerCase()) && !LEGACY_UNITS.includes(u.toLowerCase()));
   if (db.customUnits.length !== before) saveData();
 }
 
