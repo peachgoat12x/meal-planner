@@ -461,7 +461,25 @@
   .dit-qtyunit { width: 80px; text-align: right; white-space: nowrap; }
   .dit-cat { width: 25%; padding-left: 8px; }
   .unit-field { text-transform: lowercase; }
-  .unit-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+  /* Floating pill panel — fixed position so it floats above flex rows, modals, and scroll containers.
+     Positioned by JS using getBoundingClientRect() of the focused input.
+     Max-height + overflow-y allows scrolling if the panel is taller than available space. */
+  .unit-pills {
+    position: fixed;
+    z-index: 500;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    max-width: 320px;
+    max-height: 180px;
+    overflow-y: auto;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+  .unit-pills.hidden { display: none; }
   .unit-pill { background: white; border: 1.5px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--text-muted); transition: all 0.15s; white-space: nowrap; }
   .unit-pill:active { background: var(--green-primary); border-color: var(--green-primary); color: white; }
   .detail-notes { font-size: 15px; color: #444; background: var(--surface); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); line-height: 1.7; }
@@ -743,6 +761,11 @@
   <div class="modal-overlay hidden" id="modal-overlay" onclick="closeModal(event)">
     <div class="modal" id="modal-content" onclick="event.stopPropagation()"></div>
   </div>
+
+  <!-- FLOATING UNIT PILL PANEL -->
+  <!-- Single shared panel positioned via JS below whichever unit input is focused.
+       Lives outside modals so it is never recreated on modal re-render. -->
+  <div class="unit-pills hidden" id="unit-pills-container"></div>
 </div>
 
 <script>
@@ -993,29 +1016,64 @@ function unitComboHtml(id, currentValue) {
   return `<input class="form-input unit-field" id="${id}" value="${escHtml(currentValue||'')}" placeholder="Unit" autocomplete="off" onfocus="showUnitPills(this.id)" oninput="hideUnitPills()">`;
 }
 
-function showUnitPills(inputId) {
-  hideUnitPills();
+// Unit pill picker — floating panel approach.
+// The panel (#unit-pills-container) is a single fixed-position element in the page HTML,
+// shared across all unit inputs. It is never inserted into the DOM per-focus — instead
+// it is repositioned and repopulated each time a unit input is focused.
+//
+// showUnitPills(inputId, onSelect):
+//   inputId  — id of the focused unit input
+//   onSelect — optional callback(value) called when a pill is tapped.
+//              If omitted, the pill simply sets input.value (standard behaviour).
+//              Used by shopping list plan items to call updateToBuyUnit() directly.
+//
+// Positioning: getBoundingClientRect() gives viewport coords for position:fixed.
+// If insufficient space below the input, the panel flips above it.
+// hideUnitPills() is called on outside tap and on scroll (see listeners at bottom of script).
+function showUnitPills(inputId, onSelect) {
   const input = document.getElementById(inputId);
-  if (!input) return;
-  const custom = db.customUnits || [];
-  const allUnits = [...STANDARD_UNITS, ...custom];
-  const container = document.createElement('div');
-  container.className = 'unit-pills';
-  container.id = 'unit-pills-container';
-  allUnits.forEach(u => {
+  const panel = document.getElementById('unit-pills-container');
+  if (!input || !panel) return;
+
+  // Populate panel with standard units (custom units no longer accumulated)
+  panel.innerHTML = '';
+  STANDARD_UNITS.forEach(u => {
     const pill = document.createElement('button');
     pill.className = 'unit-pill';
     pill.type = 'button';
     pill.textContent = u;
-    pill.onclick = () => { input.value = u; hideUnitPills(); };
-    container.appendChild(pill);
+    pill.onmousedown = (e) => {
+      e.preventDefault(); // prevent input blur before pill tap registers
+      if (onSelect) {
+        onSelect(u);
+      } else {
+        input.value = u;
+      }
+      hideUnitPills();
+    };
+    panel.appendChild(pill);
   });
-  input.parentNode.insertBefore(container, input.nextSibling);
+
+  // Position panel below input, flipping above if insufficient space below
+  const rect = input.getBoundingClientRect();
+  const panelHeight = 180; // max-height from CSS
+  const spaceBelow = window.innerHeight - rect.bottom;
+  panel.style.left = rect.left + 'px';
+  panel.style.width = Math.min(rect.width + 60, 320) + 'px';
+  if (spaceBelow >= panelHeight || spaceBelow >= 120) {
+    panel.style.top = (rect.bottom + 4) + 'px';
+    panel.style.bottom = 'auto';
+  } else {
+    panel.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+    panel.style.top = 'auto';
+  }
+
+  panel.classList.remove('hidden');
 }
 
 function hideUnitPills() {
-  const existing = document.getElementById('unit-pills-container');
-  if (existing) existing.remove();
+  const panel = document.getElementById('unit-pills-container');
+  if (panel) panel.classList.add('hidden');
 }
 
 
@@ -2613,7 +2671,9 @@ function renderShop() {
           </div>
           <div class="shop-item-right">
             <input class="shop-tobuy-input" type="number" step="0.01" value="${item.toBuyQty ?? item.needed}" oninput="updateToBuy(${item.id},this.value)" onchange="updateToBuy(${item.id},this.value)">
-            <input class="shop-tobuy-unit-input" type="text" value="${escHtml((item.toBuyUnit ?? item.unit ?? '').toLowerCase())}" onchange="updateToBuyUnit(${item.id},this.value)">
+            <!-- Unit input uses showUnitPills with a callback so pill selection calls
+                 updateToBuyUnit() directly rather than just setting input.value -->
+            <input class="shop-tobuy-unit-input" id="shop-unit-${item.id}" type="text" value="${escHtml((item.toBuyUnit ?? item.unit ?? '').toLowerCase())}" onchange="updateToBuyUnit(${item.id},this.value)" onfocus="showUnitPills('shop-unit-${item.id}', function(u){updateToBuyUnit(${item.id},u)})" oninput="hideUnitPills()">
           </div>
         </div>
       </div>`;
@@ -2836,6 +2896,27 @@ function escHtml(s) {
 // ═══════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════
+// Hide the floating unit pill panel when tapping outside it or any unit input,
+// and when scrolling (panel position would be stale after scroll).
+document.addEventListener('mousedown', function(e) {
+  const panel = document.getElementById('unit-pills-container');
+  if (!panel || panel.classList.contains('hidden')) return;
+  if (panel.contains(e.target)) return;
+  if (e.target.classList.contains('unit-field')) return;
+  if (e.target.classList.contains('shop-tobuy-unit-input')) return;
+  hideUnitPills();
+});
+document.addEventListener('touchstart', function(e) {
+  const panel = document.getElementById('unit-pills-container');
+  if (!panel || panel.classList.contains('hidden')) return;
+  if (panel.contains(e.target)) return;
+  if (e.target.classList.contains('unit-field')) return;
+  if (e.target.classList.contains('shop-tobuy-unit-input')) return;
+  hideUnitPills();
+}, { passive: true });
+// Hide on any scroll (including inside modals) to avoid panel floating at wrong position
+window.addEventListener('scroll', hideUnitPills, true);
+
 renderContent();
 </script>
 </body>
