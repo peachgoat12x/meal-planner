@@ -944,7 +944,7 @@ const SAMPLE_DATA = {
     { id: 8,  dish: 'Hills kibble',                  mealType: 'Breakfast', qty: 30,   unit: 'g',   notes: 'Mackie and Mulberry' },
     { id: 9,  dish: 'Hills kibble',                  mealType: 'Dinner',    qty: 20,   unit: 'g',   notes: 'Mulberry' },
     { id: 10, dish: 'Hills kibble',                  mealType: 'Dinner',    qty: 30,   unit: 'g',   notes: 'Mackie' },
-    { id: 11, dish: 'Purina One indoor advantage',   mealType: 'Dinner',    qty: 1,    unit: 'pkt', notes: 'Mulberry' },
+    { id: 11, dish: 'Purina One indoor advantage',   mealType: 'Dinner',    qty: 1,    unit: 'packet', notes: 'Mulberry' },
   ],
   shoppingList: [],
   shoppingExtras: [],
@@ -979,9 +979,10 @@ if (db.readyMeals.length > 0 && !db.readyMeals.some(m => m.week)) {
 // ═══════════════════════════════════════════════════
 // UNITS
 // ═══════════════════════════════════════════════════
-// Unit fields use a custom pill picker (not a native select) so users can type free-form units.
-// On focus, standard + custom unit pills appear below the input for quick selection.
-// Custom units are saved to db.customUnits when a non-standard value is entered.
+// Unit fields use a floating pill picker for quick selection from the standard list.
+// Free-text entry still works — typed values save to the record but are no longer
+// accumulated in db.customUnits. The pill panel is a single fixed-position element
+// shared across all unit inputs (see showUnitPills / hideUnitPills).
 // Standard units of measure use abbreviations (g, kg, ml etc).
 // Non-standard units use full spellings (piece, bottle etc) for clarity.
 // Old short forms (pc, btl, pkt, clv, blk) removed — replaced by full-word equivalents.
@@ -1084,15 +1085,6 @@ function hideUnitPills() {
   if (panel) panel.classList.add('hidden');
 }
 
-
-function saveCustomUnit(val) {
-  if (!val) return;
-  const v = val.trim().toLowerCase();
-  if (!v || STANDARD_UNITS.includes(v) || (db.customUnits||[]).includes(v)) return;
-  if (!db.customUnits) db.customUnits = [];
-  db.customUnits.push(v);
-  saveData();
-}
 
 function nextId() {
   const id = db.nextId || 11;
@@ -1478,9 +1470,10 @@ function renderPantry() {
   return html;
 }
 
-// Renders only the item count, Add button, and card list below the pantry filters.
+// Renders the filtered item list below the pantry filters.
 // Called from the search oninput handler so the input element is never recreated
 // mid-keystroke — preventing the keyboard from closing on mobile.
+// Item count and Add button live in renderPantry() — not here.
 function renderPantryList() {
   const container = document.getElementById('pantry-list');
   if (!container) return;
@@ -2896,9 +2889,9 @@ function importData(event) {
       if (db.readyMeals.length > 0 && !db.readyMeals.some(m => m.week)) {
         db.readyMeals = [];
       }
-      // Prune custom units now covered by the updated STANDARD_UNITS list
+      // Prune custom units now covered by the updated STANDARD_UNITS list or legacy short forms
       if (db.customUnits) {
-        db.customUnits = db.customUnits.filter(u => !STANDARD_UNITS.includes(u.toLowerCase()));
+        db.customUnits = db.customUnits.filter(u => !STANDARD_UNITS.includes(u.toLowerCase()) && !LEGACY_UNITS.includes(u.toLowerCase()));
       }
       saveData();
       render();
