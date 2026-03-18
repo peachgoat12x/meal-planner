@@ -322,6 +322,9 @@
     color: var(--green-dark);
     font-weight: 600;
     margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .this-week-panel { margin-bottom: 12px; }
@@ -1565,7 +1568,7 @@ function renderDishes() {
   const totalServings = selectedDishes.reduce((sum, d) => sum + getDishServings(d.id, viewWeek), 0);
 
   let html = `<div class="section">
-    <div class="context-banner" style="display:flex;align-items:center;gap:6px">${ICO_CAL} ${hasSelected ? selectedDishes.length + ' dish' + (selectedDishes.length!==1?'es':'') + ' selected' : 'No dishes selected'}</div>
+    <div class="context-banner">${ICO_CAL} ${hasSelected ? selectedDishes.length + ' dish' + (selectedDishes.length!==1?'es':'') + ' selected' : 'No dishes selected'}</div>
   </div>`;
 
   // This Week Panel
@@ -2090,7 +2093,7 @@ function openReadyDetail(id) {
         <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
       </div>
     </div>
-    <div style="margin-bottom:16px;min-height:480px">
+    <div style="margin-bottom:16px;min-height:210px">
       ${row('Week to eat', fmtDateFull(m.week))}
       ${row('Category', m.category ? `<span class="badge badge-${({Protein:'protein',Fibre:'fibre',Carbs:'carbs','Full Meal':'fullmeal'}[m.category]||'grey')}">${m.category}</span>` : '')}
       ${row('Location', `<span class="badge ${({Fridge:'badge-fridge',Freezer:'badge-freezer',Pantry:'badge-pantry'}[m.loc]||'badge-grey')}">${m.loc}</span>`)}
