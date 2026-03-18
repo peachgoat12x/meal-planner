@@ -212,19 +212,24 @@
   .btn-icon:active { background: #eee; }
 
   /* ── FILTER CHIPS ── */
-  .filter-group { margin-bottom: 8px; }
+  .filter-group { margin-bottom: 12px; }
   .filter-label { font-size: 10px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 5px; }
   .filter-chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .chip {
     background: white;
     border: 1.5px solid var(--border);
     border-radius: 20px;
-    padding: 4px 12px;
+    padding: 4px 10px;
     font-size: 12px;
     cursor: pointer;
     color: var(--text-muted);
     transition: all 0.15s;
     white-space: nowrap;
+    /* Fixed height + flex ensures all chips are identical size regardless of content or context */
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
   .chip.active {
     background: var(--green-primary);
@@ -237,7 +242,7 @@
   /* ── SEARCH ── */
   .search-input {
     width: 100%;
-    padding: 9px 12px;
+    padding: 6px 12px; /* matches small primary button height */
     border: 1.5px solid var(--border);
     border-radius: 8px;
     font-size: 14px;
@@ -872,7 +877,7 @@ function saveData() {
 // ═══════════════════════════════════════════════════
 // DATA MODEL — field reference for each record type:
 //
-// ingredients:  { id, name, category, qty, unit, loc, expiry }
+// ingredients:  { id, name, category, qty, unit, loc, expiry, note }
 // dishes:       { id, name, category, baseServings, notes, ingredients:[{name,qty,unit,exclude}] }
 //                 exclude — true if ingredient should be skipped when generating shopping list
 // readyMeals:   { id, name, dishId, week, isLeftover, carried, category, servings,
@@ -954,7 +959,19 @@ if (db.readyMeals.length > 0 && !db.readyMeals.some(m => m.week)) {
 // Unit fields use a custom pill picker (not a native select) so users can type free-form units.
 // On focus, standard + custom unit pills appear below the input for quick selection.
 // Custom units are saved to db.customUnits when a non-standard value is entered.
-const STANDARD_UNITS = ['g','kg','ml','l','tbsp','tsp','cup','pc','btl','pkt','clv','blk'];
+// Standard units of measure use abbreviations (g, kg, ml etc).
+// Non-standard units use full spellings (piece, bottle etc) for clarity.
+// Old short forms (pc, btl, pkt, clv, blk) removed — replaced by full-word equivalents.
+const STANDARD_UNITS = ['g','kg','ml','l','tbsp','tsp','cup','piece','bottle','packet','clove','block','slice','cube','can','box','carton'];
+
+// Prune custom units that are now covered by the updated STANDARD_UNITS list.
+// Runs on every load but is a safe no-op if customUnits is empty or already clean.
+// Handles users who had old short forms (pcs, blocks, cloves, ctn etc) saved as custom units.
+if (db.customUnits && db.customUnits.length > 0) {
+  const before = db.customUnits.length;
+  db.customUnits = db.customUnits.filter(u => !STANDARD_UNITS.includes(u.toLowerCase()));
+  if (db.customUnits.length !== before) saveData();
+}
 
 function unitComboHtml(id, currentValue) {
   return `<input class="form-input unit-field" id="${id}" value="${escHtml(currentValue||'')}" placeholder="Unit" autocomplete="off" onfocus="showUnitPills(this.id)" oninput="hideUnitPills()">`;
@@ -1072,7 +1089,7 @@ function expiryBadge(expiry) {
   if (days <= 4) return `<span class="badge badge-red">${days}d</span>`;
   if (days <= 14) return `<span class="badge badge-amber">${days}d</span>`;
   if (days <= 30) return `<span class="badge badge-yellow">${days}d</span>`;
-  return `<span style="font-size:11px;color:var(--text-muted)">${fmtDate(expiry)}</span>`;
+  return ''; // Far-future expiry — not actionable, shown in edit screen only
 }
 
 // ═══════════════════════════════════════════════════
@@ -1342,31 +1359,37 @@ function renderPantry() {
   const cats = ['All', 'Protein', 'Fibre', 'Carbs', 'Dry Goods', 'Condiments', 'Sauces', 'Snacks', 'Drinks'];
   const locs = ['All', 'Fridge', 'Freezer', 'Pantry'];
 
+  // Expiry chip turns dark red when any pantry item is expiring within 14 days —
+  // passive at-a-glance signal without needing an icon.
+  const hasExpiring = db.ingredients.some(i => i.expiry && daysUntilExpiry(i.expiry) <= 14);
+  const expiryChipStyle = !pantryExpFilter && hasExpiring ? ' style="color:var(--red-dark)"' : '';
+  //   Row 1: Location chips + Expiry warning chip on the same line
+  //   Row 2: Category chips
+  //   Row 3: Search bar + Add button — search bar is full-width flex, button is fixed width
+  // Section labels removed to reduce visual bulk — chips are self-explanatory.
+  // Search input must remain in renderPantry() (not renderPantryList()) so it is never
+  // recreated on keystroke, preventing the mobile keyboard from closing.
+  // Add button moved here from renderPantryList() so it sits alongside the search bar.
   let html = `<div class="section">
-    <div class="search-wrap">
-      <span class="search-icon">${ICO_SEARCH}</span>
-      <input class="search-input" type="search" placeholder="Search ingredients…" value="${escHtml(pantrySearch)}" oninput="pantrySearch=this.value;confirmDel=null;renderPantryList()">
-    </div>
-
     <div class="filter-group">
-      <div class="filter-label">Storage Location</div>
       <div class="filter-chips">
         ${locs.map(l => `<button class="chip${!pantryExpFilter && pantryLocFilter===l?' active':''}" onclick="setLocFilter('${l}')">${l}</button>`).join('')}
+        <button class="chip warning-chip${pantryExpFilter?' active':''}" onclick="toggleExpFilter()"${expiryChipStyle}>Expiry</button>
       </div>
     </div>
 
     <div class="filter-group">
-      <div class="filter-label">Food Category</div>
       <div class="filter-chips">
         ${cats.map(c => `<button class="chip${!pantryExpFilter && pantryCatFilter===c?' active':''}" onclick="setCatFilter('${c}')">${c}</button>`).join('')}
       </div>
     </div>
 
-    <div class="filter-group">
-      <div class="filter-label">Expiry Status</div>
-      <div class="filter-chips">
-        <button class="chip warning-chip${pantryExpFilter?' active':''}" onclick="toggleExpFilter()" style="display:inline-flex;align-items:center;gap:5px">${ICO_WARN} Expiring / Expired</button>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <div class="search-wrap" style="flex:1;margin-bottom:0">
+        <span class="search-icon">${ICO_SEARCH}</span>
+        <input class="search-input" type="search" placeholder="Search ingredients…" value="${escHtml(pantrySearch)}" oninput="pantrySearch=this.value;confirmDel=null;renderPantryList()">
       </div>
+      <button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="openIngModal()">+ Item</button>
     </div>
   </div>
   <div id="pantry-list"></div>`;
@@ -1399,22 +1422,21 @@ function renderPantryList() {
     if (pantryCatFilter !== 'All') items = items.filter(i => i.category === pantryCatFilter);
   }
 
-  let html = `<div style="padding:0 14px 6px;display:flex;justify-content:space-between;align-items:center">
-    <span style="font-size:12px;color:var(--text-muted)">${items.length} item${items.length!==1?'s':''}</span>
-    <button class="btn-primary btn-primary-sm" onclick="openIngModal()">+ Add Item</button>
-  </div>`;
+  // Item count and Add button removed — Add button now lives in renderPantry() alongside search.
+  let html = ``;
 
   if (items.length === 0) {
     html += '<div class="empty-state">No items found</div>';
   } else {
     html += '<div class="card tab-list-card">';
     items.forEach(item => {
+      // Category badge intentionally omitted from list view — available in edit screen.
+      // Qty/unit rendered small and muted to keep the name as the primary visual element.
       html += `<div class="item-row">
         ${delBtn('ing', item.id)}
         <div class="item-main">
-          <div class="item-name">${escHtml(item.name)} <span style="font-weight:400">${item.qty} ${(item.unit||'').toLowerCase()}</span></div>
+          <div class="item-name">${escHtml(item.name)} <span style="font-weight:400;font-size:12px;color:var(--text-muted)">${item.qty} ${(item.unit||'').toLowerCase()}</span></div>
           <div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;align-items:center">
-            ${catBadge(item.category)}
             ${expiryBadge(item.expiry)}
           </div>
         </div>
@@ -1482,6 +1504,10 @@ function openIngModal(id, returnDishId) {
       <label class="form-label">Expiry Date (optional)</label>
       <input class="form-input" id="ing-expiry" type="date" value="${ing?.expiry||''}">
     </div>
+    <div class="form-group">
+      <label class="form-label">Note (optional)</label>
+      <input class="form-input" id="ing-note" value="${escHtml(ing?.note||'')}" placeholder="e.g. Opened, use first">
+    </div>
     <div class="modal-footer">
       <div></div>
       <div class="modal-footer-right">
@@ -1509,6 +1535,7 @@ function saveIng(id, returnDishId) {
     category: document.getElementById('ing-cat').value,
     loc: document.getElementById('ing-loc').value,
     expiry: document.getElementById('ing-expiry').value || '',
+    note: document.getElementById('ing-note').value.trim(),
   };
   saveCustomUnit(document.getElementById('ing-unit').value);
   if (id) {
@@ -1840,6 +1867,7 @@ function openPantryPeek(ingId, dishId) {
       ${row('Category', ing.category ? `<span class="badge badge-${({Protein:'protein',Fibre:'fibre',Carbs:'carbs','Dry Goods':'drygds',Condiments:'condiments',Sauces:'sauces',Snacks:'snacks',Drinks:'drinks'}[ing.category]||'grey')}">${ing.category}</span>` : '')}
       ${row('Location', ing.loc ? `<span class="badge ${({'Fridge':'badge-fridge','Freezer':'badge-freezer','Pantry':'badge-pantry'}[ing.loc]||'badge-grey')}">${ing.loc}</span>` : '')}
       ${ing.expiry ? row('Expiry', fmtDateFull(ing.expiry) + (daysUntilExpiry(ing.expiry) < 0 ? ' <span class="badge badge-red">Expired</span>' : daysUntilExpiry(ing.expiry) <= 14 ? ` <span class="badge badge-amber">${daysUntilExpiry(ing.expiry)}d</span>` : '')) : ''}
+      ${row('Note', ing.note ? escHtml(ing.note) : '-')}
     </div>
   `);
 }
@@ -2768,6 +2796,10 @@ function importData(event) {
       // Wipe ready meals if none have a week field (backup pre-dates week field)
       if (db.readyMeals.length > 0 && !db.readyMeals.some(m => m.week)) {
         db.readyMeals = [];
+      }
+      // Prune custom units now covered by the updated STANDARD_UNITS list
+      if (db.customUnits) {
+        db.customUnits = db.customUnits.filter(u => !STANDARD_UNITS.includes(u.toLowerCase()));
       }
       saveData();
       render();
