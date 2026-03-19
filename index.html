@@ -413,24 +413,10 @@
   .modal-body {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 18px 8px;
+    padding: 20px 18px 28px;
     overscroll-behavior: none;
   }
-  /* recipe-topbar: no longer needs sticky — it sits above .modal-body in the
-     flex column, outside the scroll container. Position:sticky removed. */
-  .recipe-topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 14px 16px 10px;
-    background: white;
-    flex-shrink: 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .recipe-topbar-actions { display: flex; gap: 8px; align-items: center; }
-  .recipe-body { padding: 16px 18px 30px; }
-  /* modal-header: header bar for bottom sheet modals (used from Build B onward).
-     Mirrors recipe-topbar visually but kept as a separate class. */
+  /* modal-header: header bar for all modals. */
   .modal-header {
     display: flex;
     justify-content: space-between;
@@ -441,7 +427,7 @@
     flex-shrink: 0;
   }
   @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-  .modal-title { font-size: 19px; font-weight: 700; margin-bottom: 16px; }
+  .modal-title { font-size: 19px; font-weight: 700; margin-bottom: 0; }
   /* modal-footer: sticky to bottom of the flex column. Background white so it
      doesn't show scroll content bleeding through. flex-shrink:0 prevents compression. */
   .modal-footer { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-top: 1px solid var(--border); background: white; flex-shrink: 0; }
@@ -3100,6 +3086,7 @@ function escHtml(s) {
 // ═══════════════════════════════════════════════════
 // INIT
 renderContent();
+// ═══════════════════════════════════════════════════
 </script>
 </body>
 </html>
