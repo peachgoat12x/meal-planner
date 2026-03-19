@@ -408,11 +408,13 @@
   /* Restore safe-area top padding on fullscreen modal headers.
      max() ensures minimum 14px even on non-notched devices where env() returns 0. */
   .modal-fullscreen .modal-header { padding-top: max(14px, env(safe-area-inset-top)); }
-  /* Scrollable content area between header and footer. */
+  /* Scrollable content area between header and footer.
+     overscroll-behavior:none suppresses rubber-band stretch that exposes the page behind the modal. */
   .modal-body {
     flex: 1;
     overflow-y: auto;
     padding: 20px 18px 8px;
+    overscroll-behavior: none;
   }
   /* recipe-topbar: no longer needs sticky — it sits above .modal-body in the
      flex column, outside the scroll container. Position:sticky removed. */
