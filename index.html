@@ -386,38 +386,63 @@
   }
   .modal-overlay.fullscreen { align-items: flex-start; }
   .modal-overlay.hidden { display: none; }
+  /* Outer modal container: flex column so header/footer pin and body scrolls.
+     overflow:hidden keeps the rounded corners clipping correctly. */
   .modal {
     background: white;
     border-radius: 18px 18px 0 0;
     width: 100%;
     max-width: 460px;
     max-height: 80vh;
-    overflow-y: auto;
-    padding: 20px 18px 30px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     animation: slideUp 0.25s ease;
   }
+  /* Fullscreen variant: same flex column, full viewport height, no rounding. */
   .modal-fullscreen {
     border-radius: 0;
     max-height: 100dvh;
     height: 100dvh;
-    padding: env(safe-area-inset-top, 8px) 0 30px;
   }
+  /* Restore safe-area top padding on fullscreen modal headers.
+     max() ensures minimum 14px even on non-notched devices where env() returns 0. */
+  .modal-fullscreen .modal-header { padding-top: max(14px, env(safe-area-inset-top)); }
+  /* Scrollable content area between header and footer. */
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 18px 8px;
+  }
+  /* recipe-topbar: no longer needs sticky — it sits above .modal-body in the
+     flex column, outside the scroll container. Position:sticky removed. */
   .recipe-topbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 14px 16px 10px;
     background: white;
-    position: sticky;
-    top: 0;
-    z-index: 10;
+    flex-shrink: 0;
     border-bottom: 1px solid var(--border);
   }
   .recipe-topbar-actions { display: flex; gap: 8px; align-items: center; }
   .recipe-body { padding: 16px 18px 30px; }
+  /* modal-header: header bar for bottom sheet modals (used from Build B onward).
+     Mirrors recipe-topbar visually but kept as a separate class. */
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    background: white;
+    flex-shrink: 0;
+  }
   @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   .modal-title { font-size: 19px; font-weight: 700; margin-bottom: 16px; }
-  .modal-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+  /* modal-footer: sticky to bottom of the flex column. Background white so it
+     doesn't show scroll content bleeding through. flex-shrink:0 prevents compression. */
+  .modal-footer { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-top: 1px solid var(--border); background: white; flex-shrink: 0; }
   .modal-footer-right { display: flex; gap: 8px; }
 
   .form-group { margin-bottom: 13px; }
@@ -1667,54 +1692,55 @@ function openIngModal(id, returnDishId) {
   const cancelAction = returnDishId ? `openPantryPeek(${id},${returnDishId})` : `closeModal()`;
 
   openModal(`
-    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
-      <span>${title}</span>
+    <div class="modal-header">
+      <span class="modal-title" style="margin-bottom:0">${title}</span>
       <button class="btn-icon ico-muted" onclick="${cancelAction}">${ICO_CLOSE}</button>
     </div>
-    <div class="form-group">
-      <label class="form-label">Name *</label>
-      <input class="form-input" id="ing-name" value="${escHtml(ing?.name||'')}" placeholder="e.g. Pork belly">
-    </div>
-    <div class="form-row">
+    <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">Qty</label>
-        <input class="form-input" id="ing-qty" type="number" step="0.01" value="${ing?.qty||''}">
+        <label class="form-label">Name *</label>
+        <input class="form-input" id="ing-name" value="${escHtml(ing?.name||'')}" placeholder="e.g. Pork belly">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Qty</label>
+          <input class="form-input" id="ing-qty" type="number" step="0.01" value="${ing?.qty||''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Unit</label>
+          ${unitComboHtml('ing-unit', ing?.unit||'')}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select class="form-select" id="ing-cat">
+            ${cats.map(c=>`<option${ing?.category===c?' selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location</label>
+          <select class="form-select" id="ing-loc">
+            ${locs.map(l=>`<option${ing?.loc===l?' selected':''}>${l}</option>`).join('')}
+          </select>
+        </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Unit</label>
-        ${unitComboHtml('ing-unit', ing?.unit||'')}
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Category</label>
-        <select class="form-select" id="ing-cat">
-          ${cats.map(c=>`<option${ing?.category===c?' selected':''}>${c}</option>`).join('')}
-        </select>
+        <label class="form-label">Expiry Date (optional)</label>
+        <input class="form-input" id="ing-expiry" type="date" value="${ing?.expiry||''}">
       </div>
       <div class="form-group">
-        <label class="form-label">Location</label>
-        <select class="form-select" id="ing-loc">
-          ${locs.map(l=>`<option${ing?.loc===l?' selected':''}>${l}</option>`).join('')}
-        </select>
+        <label class="form-label">Note (optional)</label>
+        <input class="form-input" id="ing-note" value="${escHtml(ing?.note||'')}" placeholder="e.g. Opened, use first">
       </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Expiry Date (optional)</label>
-      <input class="form-input" id="ing-expiry" type="date" value="${ing?.expiry||''}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Note (optional)</label>
-      <input class="form-input" id="ing-note" value="${escHtml(ing?.note||'')}" placeholder="e.g. Opened, use first">
     </div>
     <div class="modal-footer">
       <div></div>
       <div class="modal-footer-right">
-        ${returnDishId ? '' : `<button class="btn-secondary" onclick="closeModal()">Cancel</button>`}
         <button class="btn-primary" onclick="saveIng(${id||'null'},${returnDishId||'null'})">Save</button>
       </div>
     </div>
-  `);
+  `, true);
 }
 
 // Saves a pantry ingredient (add or edit).
@@ -2008,14 +2034,14 @@ function openDishDetail(id) {
   }
 
   openModal(`
-    <div class="recipe-topbar">
+    <div class="modal-header">
       <div class="modal-title" style="margin-bottom:0">${escHtml(dish.name)} ${catBadge(dish.category)}</div>
-      <div class="recipe-topbar-actions">
+      <div style="display:flex;gap:8px;align-items:center">
         <button class="btn-icon ico" onclick="openDishModal(${id})" title="Edit">${ICO_EDIT}</button>
         <button class="btn-icon ico-muted" onclick="closeModal()" title="Close">${ICO_CLOSE}</button>
       </div>
     </div>
-    <div class="recipe-body">
+    <div class="modal-body">
       <label class="detail-checkbox" style="margin-bottom:14px">
         <input type="checkbox" ${selected?'checked':''} onchange="toggleDish(${id});updateDetailCheckbox(this,${id})">
         Selected for Week of ${fmtDateFull(viewWeek)}
@@ -2071,14 +2097,14 @@ function openPantryPeek(ingId, dishId) {
     </div>`;
   }
   openModal(`
-    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
-      <span>${escHtml(ing.name)}</span>
+    <div class="modal-header">
+      <span class="modal-title" style="margin-bottom:0">${escHtml(ing.name)}</span>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn-icon ico" onclick="openIngModal(${ingId},${dishId})" title="Edit">${ICO_EDIT}</button>
         <button class="btn-icon ico-muted" onclick="closeModal()" title="Close">${ICO_CLOSE}</button>
       </div>
     </div>
-    <div style="margin-bottom:16px;height:70vh;overflow-y:auto">
+    <div class="modal-body">
       ${row('Qty', ing.qty != null ? `${ing.qty} ${pluraliseUnit(ing.unit, ing.qty)}` : '')}
       ${row('Category', ing.category ? `<span class="badge badge-${({Protein:'protein',Fibre:'fibre',Carbs:'carbs','Dry Goods':'drygds',Condiments:'condiments',Sauces:'sauces',Snacks:'snacks',Drinks:'drinks'}[ing.category]||'grey')}">${ing.category}</span>` : '')}
       ${row('Location', ing.loc ? `<span class="badge ${({'Fridge':'badge-fridge','Freezer':'badge-freezer','Pantry':'badge-pantry'}[ing.loc]||'badge-grey')}">${ing.loc}</span>` : '')}
@@ -2114,13 +2140,11 @@ function openDishModal(id) {
     : `<button class="btn-icon ico" onclick="startDishDelete(${id})" title="Delete">${ICO_TRASH}</button>`;
 
   openModal(`
-    <div class="recipe-topbar">
+    <div class="modal-header">
       <div class="modal-title" style="margin-bottom:0">${topTitle}</div>
-      <div class="recipe-topbar-actions">
-        <button class="btn-icon ico-muted" onclick="${cancelAction}" title="Cancel">${ICO_CLOSE}</button>
-      </div>
+      <button class="btn-icon ico-muted" onclick="${cancelAction}" title="Cancel">${ICO_CLOSE}</button>
     </div>
-    <div class="recipe-body">
+    <div class="modal-body">
       <div class="form-group">
         <label class="form-label">Dish Name *</label>
         <input class="form-input" id="dish-name" value="${escHtml(dish?.name||'')}" placeholder="e.g. Braised Pork Belly">
@@ -2146,11 +2170,11 @@ function openDishModal(id) {
         <div id="dish-ings">${ingRows}</div>
         <button class="btn-secondary" style="margin-top:6px;font-size:12px;padding:5px 12px" onclick="addDishIng()">+ Add Ingredient</button>
       </div>
-      <div class="modal-footer">
-        <div>${id ? deleteFooter : ''}</div>
-        <div class="modal-footer-right">
-          <button class="btn-primary" onclick="saveDish(${id||'null'})">Save</button>
-        </div>
+    </div>
+    <div class="modal-footer">
+      <div>${id ? deleteFooter : ''}</div>
+      <div class="modal-footer-right">
+        <button class="btn-primary" onclick="saveDish(${id||'null'})">Save</button>
       </div>
     </div>
   `, true);
@@ -2329,14 +2353,14 @@ function openReadyDetail(id) {
   }
 
   openModal(`
-    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
-      <span>${m.isLeftover ? '<span class="badge badge-orange" style="margin-right:6px;vertical-align:middle">* leftover</span>' : ''}${escHtml(m.name)}</span>
+    <div class="modal-header">
+      <span class="modal-title" style="margin-bottom:0">${m.isLeftover ? '<span class="badge badge-orange" style="margin-right:6px;vertical-align:middle">* leftover</span>' : ''}${escHtml(m.name)}</span>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn-icon ico" onclick="openReadyModal(${id})" title="Edit">${ICO_EDIT}</button>
         <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
       </div>
     </div>
-    <div style="margin-bottom:16px;height:70vh;overflow-y:auto">
+    <div class="modal-body">
       ${row('Week to eat', fmtDateFull(m.week))}
       ${row('Category', m.category ? `<span class="badge badge-${({Protein:'protein',Fibre:'fibre',Carbs:'carbs','Full Meal':'fullmeal'}[m.category]||'grey')}">${m.category}</span>` : '')}
       ${row('Location', `<span class="badge ${({Fridge:'badge-fridge',Freezer:'badge-freezer',Pantry:'badge-pantry'}[m.loc]||'badge-grey')}">${m.loc}</span>`)}
@@ -2497,54 +2521,59 @@ function openReadyModal(id) {
   ];
 
   openModal(`
-    <div class="modal-title" id="rm-modal-title" style="display:flex;justify-content:space-between;align-items:center"><span>${m ? 'Edit Ready Meal' : 'Add Ready Meal'}${m?.isLeftover ? '<span class="badge badge-orange" style="margin-left:8px;vertical-align:middle">* leftover</span>' : ''}</span><button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button></div>
-    <div class="form-group">
-      <label class="form-label">Dish Name *</label>
-      <div class="rm-name-wrap">
-        <input class="form-input" id="rm-name" value="${escHtml(m?.name || '')}" placeholder="e.g. Braised Pork Belly"
-          autocomplete="off" onfocus="showRmSuggestions()" oninput="filterRmSuggestions(this.value)" onchange="handleRmNameChange(this)">
-        <div class="rm-suggestions hidden" id="rm-suggestions"></div>
-      </div>
+    <div class="modal-header">
+      <span class="modal-title" id="rm-modal-title" style="margin-bottom:0">${m ? 'Edit Ready Meal' : 'Add Ready Meal'}${m?.isLeftover ? '<span class="badge badge-orange" style="margin-left:8px;vertical-align:middle">* leftover</span>' : ''}</span>
+      <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
     </div>
-    <div class="form-row">
+    <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">Category</label>
-        <select class="form-select" id="rm-cat">
-          ${['Protein','Fibre','Carbs','Full Meal'].map(c => `<option${m?.category === c ? ' selected' : ''}>${c}</option>`).join('')}
-        </select>
+        <label class="form-label">Dish Name *</label>
+        <div class="rm-name-wrap">
+          <input class="form-input" id="rm-name" value="${escHtml(m?.name || '')}" placeholder="e.g. Braised Pork Belly"
+            autocomplete="off" onfocus="showRmSuggestions()" oninput="filterRmSuggestions(this.value)" onchange="handleRmNameChange(this)">
+          <div class="rm-suggestions hidden" id="rm-suggestions"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select class="form-select" id="rm-cat">
+            ${['Protein','Fibre','Carbs','Full Meal'].map(c => `<option${m?.category === c ? ' selected' : ''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location</label>
+          <select class="form-select" id="rm-loc">
+            ${locs.map(l => `<option${m?.loc === l ? ' selected' : ''}>${l}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Week to eat</label>
+          <select class="form-select" id="rm-week">
+            ${[-1,0,1,2].map(n => { const w = addWks(viewWeek, n); const marker = n === -1 ? ' (-1)' : n === 0 ? ' ✓' : n === 1 ? ' (+1)' : ' (+2)'; return `<option value="${w}"${(m?.week||viewWeek)===w?' selected':''}>${fmtDate(w)}${marker}</option>`; }).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Servings</label>
+          <input class="form-input" id="rm-servings" type="number" min="0" step="1" value="${m?.servings ?? 4}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Date Cooked</label>
+          <input class="form-input" id="rm-cooked" type="date" value="${defaultCooked}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Eat By (optional)</label>
+          <input class="form-input" id="rm-eatby" type="date" value="${m?.eatBy || ''}">
+        </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Location</label>
-        <select class="form-select" id="rm-loc">
-          ${locs.map(l => `<option${m?.loc === l ? ' selected' : ''}>${l}</option>`).join('')}
-        </select>
+        <label class="form-label">Note (optional)</label>
+        <input class="form-input" id="rm-note" value="${escHtml(m?.note || '')}" placeholder="e.g. Middle shelf">
       </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Week to eat</label>
-        <select class="form-select" id="rm-week">
-          ${[-1,0,1,2].map(n => { const w = addWks(viewWeek, n); const marker = n === -1 ? ' (-1)' : n === 0 ? ' ✓' : n === 1 ? ' (+1)' : ' (+2)'; return `<option value="${w}"${(m?.week||viewWeek)===w?' selected':''}>${fmtDate(w)}${marker}</option>`; }).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Servings</label>
-        <input class="form-input" id="rm-servings" type="number" min="0" step="1" value="${m?.servings ?? 4}">
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Date Cooked</label>
-        <input class="form-input" id="rm-cooked" type="date" value="${defaultCooked}">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Eat By (optional)</label>
-        <input class="form-input" id="rm-eatby" type="date" value="${m?.eatBy || ''}">
-      </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Note (optional)</label>
-      <input class="form-input" id="rm-note" value="${escHtml(m?.note || '')}" placeholder="e.g. Middle shelf">
     </div>
     <div class="modal-footer">
       <div></div>
@@ -2552,7 +2581,7 @@ function openReadyModal(id) {
         <button class="btn-primary" onclick="saveReady(${id || 'null'})">Save</button>
       </div>
     </div>
-  `);
+  `, true);
 
   // Register outside-tap listener (click + touchstart for mobile)
   if (rmOutsideClickListener) {
@@ -2614,13 +2643,11 @@ function saveReady(id) {
 function renderServingModal() {
   const rows = db.servingGuide;
 
-  let html = `<div class="recipe-topbar">
+  let html = `<div class="modal-header">
       <div class="modal-title" style="margin-bottom:0">Portions Guide</div>
-      <div class="recipe-topbar-actions">
-        <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
-      </div>
+      <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
     </div>
-    <div class="recipe-body">`;
+    <div class="modal-body">`;
 
   if (rows.length === 0) {
     html += `<div style="padding:20px 0;text-align:center;color:var(--text-muted);font-size:13px">No entries yet.</div>`;
@@ -2652,11 +2679,13 @@ function renderServingModal() {
     html += `</tbody></table></div>`;
   }
 
-  html += `<div style="display:flex;justify-content:flex-end">
-    <button class="btn-primary btn-primary-sm" onclick="openServingModal()">+ Add Entry</button>
+  html += `</div>`; // close modal-body
+  html += `<div class="modal-footer">
+    <div></div>
+    <div class="modal-footer-right">
+      <button class="btn-primary btn-primary-sm" onclick="openServingModal()">+ Add Entry</button>
+    </div>
   </div>`;
-
-  html += `</div>`; // close recipe-body
 
   return html;
 }
@@ -2682,13 +2711,11 @@ function openServingModal(id) {
     : '';
 
   openModal(`
-    <div class="recipe-topbar">
+    <div class="modal-header">
       <div class="modal-title" style="margin-bottom:0">${r ? 'Edit Entry' : 'Add Entry'}</div>
-      <div class="recipe-topbar-actions">
-        <button class="btn-icon ico-muted" onclick="openPortionsModal()">${ICO_CLOSE}</button>
-      </div>
+      <button class="btn-icon ico-muted" onclick="openPortionsModal()">${ICO_CLOSE}</button>
     </div>
-    <div class="recipe-body">
+    <div class="modal-body">
       <div class="form-group">
         <label class="form-label">Dish *</label>
         <input class="form-input" id="sg-dish" value="${escHtml(r?.dish || '')}" placeholder="e.g. Pasta">
@@ -2713,11 +2740,11 @@ function openServingModal(id) {
         <label class="form-label">Notes (optional)</label>
         <input class="form-input" id="sg-notes" value="${escHtml(r?.notes || '')}" placeholder="e.g. Cooks to 186g">
       </div>
-      <div class="modal-footer">
-        <div>${deleteFooter}</div>
-        <div class="modal-footer-right">
-          <button class="btn-primary" onclick="saveServing(${id || 'null'})">Save</button>
-        </div>
+    </div>
+    <div class="modal-footer">
+      <div>${deleteFooter}</div>
+      <div class="modal-footer-right">
+        <button class="btn-primary" onclick="saveServing(${id || 'null'})">Save</button>
       </div>
     </div>
   `, true);
@@ -2920,19 +2947,23 @@ function updateExtraUnit(id, val) {
 // shopTicked deletion is handled by doDel('shopTicked', 0) — see DELETE PATTERN section.
 function openShopExtraModal() {
   openModal(`
-    <div class="modal-title">Add Extra Item</div>
-    <div class="form-group">
-      <label class="form-label">Item Name *</label>
-      <input class="form-input" id="sx-name" placeholder="e.g. Garlic">
+    <div class="modal-header">
+      <div class="modal-title" style="margin-bottom:0">Add Extra Item</div>
     </div>
-    <div class="form-row">
+    <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">Qty (optional)</label>
-        <input class="form-input" id="sx-qty" type="number" step="0.01" placeholder="">
+        <label class="form-label">Item Name *</label>
+        <input class="form-input" id="sx-name" placeholder="e.g. Garlic">
       </div>
-      <div class="form-group">
-        <label class="form-label">Unit (optional)</label>
-        ${unitComboHtml('sx-unit', '')}
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Qty (optional)</label>
+          <input class="form-input" id="sx-qty" type="number" step="0.01" placeholder="">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Unit (optional)</label>
+          ${unitComboHtml('sx-unit', '')}
+        </div>
       </div>
     </div>
     <div class="modal-footer">
