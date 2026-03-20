@@ -598,6 +598,18 @@
     padding: 6px 0 6px;
     margin-bottom: 2px;
   }
+  .ready-section-header {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 6px 0 6px;
+    margin-bottom: 2px;
+  }
+  .ready-card-freezer {
+    background: #eff6ff;
+  }
   .shop-item {
     background: white;
     border: 1px solid var(--border);
@@ -804,7 +816,7 @@
     <button class="tab-btn active" onclick="switchTab(0)"><span class="tab-icon ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3L21 10.5V20H15.5V15H8.5V20H3V10.5Z"/></svg></span>Home</button>
     <button class="tab-btn" onclick="switchTab(1)"><span class="tab-icon ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6C10 5 7 5 4 6V19C7 18 10 18 12 19C14 18 17 18 20 19V6C17 5 14 5 12 6Z"/><line x1="12" y1="6" x2="12" y2="19"/></svg></span>Dishes</button>
     <button class="tab-btn" onclick="switchTab(2)"><span class="tab-icon ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12H19"/><path d="M6 12C6 16 8.5 18 12 18C15.5 18 18 16 18 12"/><path d="M9 9C9 8 9.5 7 9.5 6"/><path d="M12 8C12 7 12.5 6 12.5 5"/><path d="M15 9C15 8 15.5 7 15.5 6"/></svg></span>Ready</button>
-    <button class="tab-btn" onclick="switchTab(3)"><span class="tab-icon ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="5" y1="10" x2="19" y2="10"/><line x1="10" y1="6" x2="10" y2="8"/><line x1="10" y1="13" x2="10" y2="16"/></svg></span>Pantry</button>
+    <button class="tab-btn" onclick="switchTab(3)"><span class="tab-icon ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="5" y1="10" x2="19" y2="10"/><line x1="16" y1="6" x2="16" y2="8"/><line x1="16" y1="13" x2="16" y2="16"/></svg></span>Pantry</button>
     <button class="tab-btn" onclick="switchTab(4)"><span class="tab-icon ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4H6L8.5 15H17L19.5 7H7"/><circle cx="10" cy="18.5" r="1.5"/><circle cx="16.5" cy="18.5" r="1.5"/></svg></span>List</button>
   </div>
 
@@ -820,7 +832,7 @@
 // SVG ICON CONSTANTS
 // All icons: stroke-width 2, round linecap & linejoin, no fill.
 // Use these everywhere rather than repeating SVG markup.
-// 18×18: action icons in btn-icon contexts (edit, trash, close, search, warn, broom)
+// 18×18: action icons in btn-icon contexts (edit, trash, close, search, warn, broom, to-fridge)
 // 16×16: smaller inline icons (tick, cross, remove, copy, export, import, cart, plan, cal)
 // 48×48: large empty-state bowl (ICO_BOWL_LG)
 // ═══════════════════════════════════════════════════
@@ -849,6 +861,10 @@ const ICO_FORK_SPOON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="no
 // Curved undo arrow: used in Ready tab to add one serving back after logging consumption.
 // Not a true undo — simply increments servings by 1, capped at cookedServings.
 const ICO_UNDO       = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9L9 4"/><path d="M4 9H15C17.8 9 20 11.2 20 14C20 16.8 17.8 19 15 19H11"/></svg>`;
+// Move-to-fridge: fridge outline with two compartments (small freezer drawer on top, main body below).
+// Door handle on the right side. Used in freezer card top bar to move portions to a fridge card.
+// Geometry is identical to the Pantry tab icon — same path data, rendered at 18×18 instead of 22×22.
+const ICO_TO_FRIDGE  = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" ${_S}><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="5" y1="10" x2="19" y2="10"/><line x1="16" y1="6" x2="16" y2="8"/><line x1="16" y1="13" x2="16" y2="16"/></svg>`;
 
 // ═══════════════════════════════════════════════════
 // DATE HELPERS
@@ -938,6 +954,7 @@ let thisWeekCollapsed = false;     // whether the This Week panel in Dishes tab 
 let thisWeekUserSet = false;       // true if user has manually toggled the panel (prevents auto-collapse)
 let dishReplaceConfirm = false;    // true when user has been asked to confirm replacing shop list
 let dishDeleteConfirm = false;     // true when dish delete confirm UI is showing in the edit modal
+let readyDeleteConfirm = false;    // true when ready meal delete confirm UI is showing in the edit modal
 let servingDeleteId = null;        // id of serving entry pending delete confirmation (null when none)
 
 // Ready Meals modal state — reset on openReadyModal, switchTab, and closeModal
@@ -1325,8 +1342,10 @@ function expiryBadge(expiry) {
 // Tapping the trash icon sets confirmDel = {scope, id} and re-renders, showing tick/cross buttons in place.
 // Tapping tick calls doDel which performs the delete. Tapping cross clears confirmDel and re-renders.
 // scope values: 'ing' (pantry), 'dish', 'ready', 'serving', 'shopAll' (entire shopping list), 'shopTicked' (checked items only)
-// Dish deletion uses a separate dishDeleteConfirm flag because it lives inside a fullscreen modal
-// where render() does not update modal content — openDishModal() is called directly instead.
+// Note: 'ready' scope is only used in non-modal contexts. Ready meal deletion from the edit modal
+// uses a separate readyDeleteConfirm flag (same pattern as dishDeleteConfirm) because render() does
+// not update modal content — openReadyModal() is called directly instead.
+// Dish deletion uses a separate dishDeleteConfirm flag for the same reason.
 function delBtn(scope, id) {
   if (confirmDel && confirmDel.scope === scope && confirmDel.id === id) {
     return `<div class="del-confirm">
@@ -1504,6 +1523,7 @@ function closeModal(e) {
     document.getElementById('modal-content').classList.remove('modal-fullscreen');
     confirmDel = null;
     dishDeleteConfirm = false;
+    readyDeleteConfirm = false;
     rmIsLeftover = false;
     if (rmOutsideClickListener) {
       document.removeEventListener('click', rmOutsideClickListener);
@@ -2271,6 +2291,10 @@ function saveDish(id) {
 // ═══════════════════════════════════════════════════
 // TAB 4 — READY MEALS
 // ═══════════════════════════════════════════════════
+// Cards are grouped into Fridge and Freezer sections.
+// Card top bar: meal name on the left; edit icon on the right for all cards.
+// Freezer cards also show a move-to-fridge icon (ICO_TO_FRIDGE) to the left of the edit icon.
+// Delete is in the edit modal footer (not on the card) — uses readyDeleteConfirm flag pattern.
 
 // Quick-add for rice: creates two cards for the current week in one tap —
 // one Fridge (2 servings) and one Freezer (8 servings). Both named "Rice",
@@ -2313,21 +2337,22 @@ function renderReady() {
       <div style="font-size:14px">No ready meals yet.<br>Add your cooked batches here.</div>
     </div>`;
   } else {
-    html += `<div style="padding:0 14px 14px">`;
-    sortReadyMeals(meals).forEach(m => {
+    const fridgeMeals = sortReadyMeals(meals.filter(m => m.loc !== 'Freezer'));
+    const freezerMeals = sortReadyMeals(meals.filter(m => m.loc === 'Freezer'));
+
+    function renderReadyCard(m) {
       const ebCard = eatByCountdown(m.eatBy);
       const eatByStr = ebCard.text;
       const eatByStyle = ebCard.style === 'urgent' ? 'color:var(--red-dark);font-weight:600' : ebCard.style === 'muted' ? 'color:var(--text-muted)' : ebCard.style === 'normal' && m.eatBy && daysUntilExpiry(m.eatBy) <= 3 ? 'color:var(--amber);font-weight:600' : '';
       const nameDisplay = `${m.isLeftover ? '* ' : ''}${escHtml(m.name)}`;
-      const did = m.dishId || dishIdByName(m.name);
-
-      html += `<div class="ready-card">
+      const isFreezer = m.loc === 'Freezer';
+      return `<div class="ready-card${isFreezer ? ' ready-card-freezer' : ''}">
         <div class="ready-card-top">
           <div class="item-main">
             <div class="item-name name-link" onclick="openReadyDetail(${m.id})">${nameDisplay}</div>
           </div>
           <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-            ${delBtn('ready', m.id)}
+            ${isFreezer ? `<button class="btn-icon ico" onclick="openMoveToFridgeModal(${m.id})" title="Move to fridge">${ICO_TO_FRIDGE}</button>` : ''}
             <button class="btn-icon ico" onclick="openReadyModal(${m.id})">${ICO_EDIT}</button>
           </div>
         </div>
@@ -2336,11 +2361,9 @@ function renderReady() {
             ${eatByStr ? `<div style="font-size:11px;${eatByStyle};width:100%">${eatByStr}</div>` : ''}
             <div style="display:flex;gap:4px;flex-wrap:wrap">
               ${m.category ? catBadge(m.category) : ''}
-              ${locBadge(m.loc)}
             </div>
           </div>
           <div class="ready-card-actions">
-            ${m.loc === 'Freezer' && m.servings > 0 ? `<button class="btn-primary btn-primary-sm" style="font-size:11px;padding:4px 8px" onclick="openMoveToFridgeModal(${m.id})">Move to fridge</button>` : ''}
             ${carriedToggleHtml(m.id, m.carried)}
             <div class="serving-counter">
               <button class="counter-btn ico${m.cookedServings != null && m.servings >= m.cookedServings ? ' counter-btn-disabled' : ''}" onclick="adjReadyServings(${m.id},1)"${m.cookedServings != null && m.servings >= m.cookedServings ? ' disabled' : ''}>${ICO_UNDO}</button>
@@ -2350,7 +2373,21 @@ function renderReady() {
           </div>
         </div>
       </div>`;
-    });
+    }
+
+    html += `<div style="padding:0 14px 14px">`;
+    html += `<div class="ready-section-header">Fridge</div>`;
+    if (fridgeMeals.length === 0) {
+      html += `<div style="font-size:13px;color:var(--text-muted);padding:4px 0 10px">None</div>`;
+    } else {
+      fridgeMeals.forEach(m => { html += renderReadyCard(m); });
+    }
+    html += `<div class="ready-section-header" style="margin-top:6px">Freezer</div>`;
+    if (freezerMeals.length === 0) {
+      html += `<div style="font-size:13px;color:var(--text-muted);padding:4px 0 10px">None</div>`;
+    } else {
+      freezerMeals.forEach(m => { html += renderReadyCard(m); });
+    }
     html += `</div>`;
   }
   return html;
@@ -2663,7 +2700,9 @@ function openReadyModal(id) {
       </div>
     </div>
     <div class="modal-footer">
-      <div></div>
+      <div>${id ? (readyDeleteConfirm
+        ? `<div class="del-confirm"><span style="font-size:12px;color:var(--red)">Delete meal?</span><button class="btn-danger row-actions" onclick="confirmReadyDelete(${id})">${ICO_TICK}</button><button class="btn-cancel row-actions" onclick="cancelReadyDelete(${id})">${ICO_CROSS}</button></div>`
+        : `<button class="btn-icon ico" onclick="startReadyDelete(${id})" title="Delete">${ICO_TRASH}</button>`) : ''}</div>
       <div class="modal-footer-right">
         <button class="btn-primary" onclick="saveReady(${id || 'null'})">Save</button>
       </div>
@@ -2744,6 +2783,29 @@ function saveReady(id) {
   }
   saveData();
   viewWeek = obj.week;
+  closeModal();
+  render();
+}
+
+// Ready meal delete — named functions for the two-step confirm inside the edit modal.
+// Mirrors the dishDeleteConfirm pattern: flag is set/cleared externally, openReadyModal
+// reads it to decide whether to show the trash icon or the confirm UI.
+// closeModal() resets readyDeleteConfirm to false so it never leaks between sessions.
+function startReadyDelete(id) {
+  readyDeleteConfirm = true;
+  openReadyModal(id);
+}
+
+function cancelReadyDelete(id) {
+  readyDeleteConfirm = false;
+  openReadyModal(id);
+}
+
+function confirmReadyDelete(id) {
+  readyDeleteConfirm = false;
+  id = Number(id);
+  db.readyMeals = db.readyMeals.filter(x => x.id !== id);
+  saveData();
   closeModal();
   render();
 }
