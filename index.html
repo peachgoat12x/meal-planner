@@ -870,6 +870,18 @@ function daysUntilExpiry(dateStr) {
   return Math.floor((expiry - today) / 86400000);
 }
 
+// Returns a short day-count string for display on ready meal cards.
+// e.g. "2 days", "1 day", "Today", "1 day ago", "2 days ago", "No date"
+function eatByCountdown(dateStr) {
+  if (!dateStr) return { text: 'No date', style: 'muted' };
+  const days = daysUntilExpiry(dateStr);
+  if (days > 1)  return { text: `${days} days`, style: 'normal' };
+  if (days === 1) return { text: '1 day', style: 'normal' };
+  if (days === 0) return { text: 'Today', style: 'urgent' };
+  if (days === -1) return { text: '1 day ago', style: 'urgent' };
+  return { text: `${Math.abs(days)} days ago`, style: 'urgent' };
+}
+
 function addWks(dateStr, n) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
@@ -1537,7 +1549,7 @@ function renderHome() {
       html += `<div class="item-row">
         <div class="item-main">
           ${did ? `<div class="item-name name-link" onclick="openDishDetail(${did})">${nameDisplay}</div>` : `<div class="item-name">${nameDisplay}</div>`}
-          <div class="item-sub">${m.cookedServings != null ? `${m.servings}/${m.cookedServings}` : m.servings} servings · ${m.eatBy ? 'Eat by ' + fmtDate(m.eatBy) : ''}</div>
+          <div class="item-sub">${(() => { const eb = eatByCountdown(m.eatBy); const ebStyle = eb.style === 'urgent' ? 'color:var(--red-dark);font-weight:600' : eb.style === 'muted' ? 'color:var(--text-muted)' : ''; return `${m.cookedServings != null ? `${m.servings}/${m.cookedServings}` : m.servings} servings · <span style="${ebStyle}">${eb.text}</span>`; })()}</div>
         </div>
         ${m.category ? catBadge(m.category) : ''}
         ${locBadge(m.loc)}
@@ -2303,11 +2315,9 @@ function renderReady() {
   } else {
     html += `<div style="padding:0 14px 14px">`;
     sortReadyMeals(meals).forEach(m => {
-      const eatByDays = m.eatBy ? daysUntilExpiry(m.eatBy) : null;
-      let eatByStr = m.eatBy ? `Eat by ${fmtDate(m.eatBy)}` : '';
-      let eatByStyle = '';
-      if (eatByDays !== null && eatByDays < 0) { eatByStyle = 'color:var(--red-dark);font-weight:600'; eatByStr = `Expired (${fmtDate(m.eatBy)})`; }
-      else if (eatByDays !== null && eatByDays <= 3) { eatByStyle = 'color:var(--amber);font-weight:600'; }
+      const ebCard = eatByCountdown(m.eatBy);
+      const eatByStr = ebCard.text;
+      const eatByStyle = ebCard.style === 'urgent' ? 'color:var(--red-dark);font-weight:600' : ebCard.style === 'muted' ? 'color:var(--text-muted)' : ebCard.style === 'normal' && m.eatBy && daysUntilExpiry(m.eatBy) <= 3 ? 'color:var(--amber);font-weight:600' : '';
       const nameDisplay = `${m.isLeftover ? '* ' : ''}${escHtml(m.name)}`;
       const did = m.dishId || dishIdByName(m.name);
 
@@ -2353,10 +2363,9 @@ function renderReady() {
 function openReadyDetail(id) {
   const m = db.readyMeals.find(x => x.id === id);
   if (!m) return;
-  const eatByDays = m.eatBy ? daysUntilExpiry(m.eatBy) : null;
-  let eatByStyle = '';
-  if (eatByDays !== null && eatByDays < 0) eatByStyle = 'color:var(--red-dark);font-weight:600';
-  else if (eatByDays !== null && eatByDays <= 3) eatByStyle = 'color:var(--amber);font-weight:600';
+  const ebDetail = eatByCountdown(m.eatBy);
+  const eatByStyle = ebDetail.style === 'urgent' ? 'color:var(--red-dark);font-weight:600' : ebDetail.style === 'muted' ? 'color:var(--text-muted)' : ebDetail.style === 'normal' && m.eatBy && daysUntilExpiry(m.eatBy) <= 3 ? 'color:var(--amber);font-weight:600' : '';
+  const eatByValue = m.eatBy ? `${fmtDateFull(m.eatBy)} (${ebDetail.text})` : ebDetail.text;
 
   function row(label, value) {
     if (!value) return '';
@@ -2380,10 +2389,10 @@ function openReadyDetail(id) {
       ${row('Location', `<span class="badge ${({Fridge:'badge-fridge',Freezer:'badge-freezer',Pantry:'badge-pantry'}[m.loc]||'badge-grey')}">${m.loc}</span>`)}
       ${row('Servings left', m.cookedServings != null ? `${m.servings}/${m.cookedServings}` : String(m.servings))}
       ${row('Date cooked', m.cooked ? fmtDateFull(m.cooked) : '')}
-      ${m.eatBy ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.6px">Eat by</span>
-        <span style="font-size:14px;${eatByStyle}">${fmtDateFull(m.eatBy)}</span>
-      </div>` : ''}
+        <span style="font-size:14px;${eatByStyle}">${eatByValue}</span>
+      </div>
       ${row('Note', m.note ? escHtml(m.note) : '-')}
     </div>
   `);
