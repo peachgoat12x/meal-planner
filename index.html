@@ -2259,6 +2259,22 @@ function saveDish(id) {
 // ═══════════════════════════════════════════════════
 // TAB 4 — READY MEALS
 // ═══════════════════════════════════════════════════
+
+// Quick-add for rice: creates two cards for the current week in one tap —
+// one Fridge (2 servings) and one Freezer (8 servings). Both named "Rice",
+// category Carbs. dishId matched from db.dishes if a dish named Rice exists.
+// Cook date set to today. No modal — cards appear immediately on the page.
+function quickAddRice() {
+  const today = localStr(new Date());
+  const matchedDish = db.dishes.find(d => d.name.toLowerCase() === 'rice');
+  const dishId = matchedDish ? matchedDish.id : null;
+  const base = { name: 'Rice', category: 'Carbs', dishId, week: viewWeek, cooked: today, eatBy: '', note: '', isLeftover: false, carried: false };
+  db.readyMeals.push({ ...base, id: nextId(), loc: 'Fridge',  servings: 2, cookedServings: 2 });
+  db.readyMeals.push({ ...base, id: nextId(), loc: 'Freezer', servings: 8, cookedServings: 8 });
+  saveData();
+  render();
+}
+
 function renderReady() {
   const meals = db.readyMeals.filter(m => m.week === viewWeek);
   const proteinCount = meals.filter(m => m.category === 'Protein').length;
@@ -2273,7 +2289,8 @@ function renderReady() {
       <div class="stat-cell"><div class="stat-val" style="color:${carbsCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${carbsCount}</div><div class="stat-lbl">Carbs</div></div>
       <div class="stat-cell"><div class="stat-val" style="color:${fullMealCount ? 'var(--green-primary)' : 'var(--text-muted)'}">${fullMealCount}</div><div class="stat-lbl">Full Meal</div></div>
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px">
+      <button class="btn-primary btn-primary-sm" onclick="quickAddRice()">🍚 Log Rice</button>
       <button class="btn-primary btn-primary-sm" onclick="openReadyModal()">+ Add Meal</button>
     </div>
   </div>`;
@@ -2313,6 +2330,7 @@ function renderReady() {
             </div>
           </div>
           <div class="ready-card-actions">
+            ${m.loc === 'Freezer' && m.servings > 0 ? `<button class="btn-primary btn-primary-sm" style="font-size:11px;padding:4px 8px" onclick="openMoveToFridgeModal(${m.id})">Move to fridge</button>` : ''}
             ${carriedToggleHtml(m.id, m.carried)}
             <div class="serving-counter">
               <button class="counter-btn ico${m.cookedServings != null && m.servings >= m.cookedServings ? ' counter-btn-disabled' : ''}" onclick="adjReadyServings(${m.id},1)"${m.cookedServings != null && m.servings >= m.cookedServings ? ' disabled' : ''}>${ICO_UNDO}</button>
@@ -2473,7 +2491,74 @@ function hideRmSuggestions() {
 
 let rmOutsideClickListener = null;
 
-// ── READY MEALS MODAL ──────────────────────────────
+// ── MOVE TO FRIDGE ─────────────────────────────────
+// Opens a small modal asking how many portions to move from a Freezer card to a new Fridge card.
+// Validation: must be at least 1, must not exceed current servings of the freezer card.
+// On save: reduces freezer card servings, creates new Fridge card, then opens the edit modal
+// for the new card so the user can set eat-by, week, and other details.
+// render() is called before openReadyModal() so the page is up to date if the user
+// closes the edit modal without saving.
+function openMoveToFridgeModal(id) {
+  const m = db.readyMeals.find(x => x.id === id);
+  if (!m) return;
+  openModal(`
+    <div class="modal-header">
+      <span class="modal-title" style="margin-bottom:0">Move to Fridge</span>
+      <button class="btn-icon ico-muted" onclick="closeModal()">${ICO_CLOSE}</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">${escHtml(m.name)} — ${m.servings} ${pluraliseUnit('serving', m.servings)} in freezer</div>
+      <div class="form-group">
+        <label class="form-label">Portions to move</label>
+        <input class="form-input" id="mtf-qty" type="number" min="1" max="${m.servings}" step="1" value="1">
+        <div id="mtf-error" style="display:none;font-size:12px;color:var(--red-dark);margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div></div>
+      <div class="modal-footer-right">
+        <button class="btn-primary" onclick="saveMoveToFridge(${id})">Save</button>
+      </div>
+    </div>
+  `);
+}
+
+function saveMoveToFridge(id) {
+  const m = db.readyMeals.find(x => x.id === id);
+  if (!m) return;
+  const qty = parseInt(document.getElementById('mtf-qty').value) || 0;
+  if (qty < 1 || qty > m.servings) {
+    const err = document.getElementById('mtf-error');
+    if (err) { err.textContent = `Enter a number from 1 to ${m.servings}.`; err.style.display = 'block'; }
+    return;
+  }
+
+  // Reduce freezer card servings
+  m.servings = Math.max(0, m.servings - qty);
+
+  // Create new fridge card
+  const newId = nextId();
+  db.readyMeals.push({
+    id: newId,
+    name: m.name,
+    dishId: m.dishId,
+    category: m.category,
+    loc: 'Fridge',
+    servings: qty,
+    cookedServings: qty,
+    week: viewWeek,
+    cooked: localStr(new Date()),
+    eatBy: '',
+    note: '',
+    isLeftover: false,
+    carried: false,
+  });
+  saveData();
+  render();
+  openReadyModal(newId);
+}
+
+
 // The Dish Name field uses a custom dropdown (not native datalist) for full control
 // over ordering and styling. Suggestion sources:
 //   1. Carried meals from prior week (meal.week === viewWeek - 1 week, carried === true)
